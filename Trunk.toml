@@ -1,0 +1,26 @@
+[build]
+target = "index.html"
+public_url = "/web/"
+cargo_profile = "release-wasm"
+
+[tools]
+# System wasm-opt 119+ supports `--enable-bulk-memory` by default (the
+# bundled binaryen in Trunk 0.21 doesn't). We dropped Trunk's auto-download
+# and require binaryen ≥119 on PATH.
+wasm_opt = "version_119"
+
+[serve]
+address = "127.0.0.1"
+port = 5174
+
+# Dev proxy: in prod the frontend is same-origin with the API, but `trunk serve`
+# runs on a different port. Forward /v1/* HTTP requests and /v1/ws WebSocket
+# upgrades to a locally running taskagent-server on :8080.
+[[proxy]]
+backend = "http://127.0.0.1:8080/v1/"
+rewrite = "/v1/"
+
+[[proxy]]
+backend = "ws://127.0.0.1:8080/v1/ws"
+rewrite = "/v1/ws"
+ws = true

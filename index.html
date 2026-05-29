@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaskAgent</title>
+  <link rel="icon" href="data:," />
+  <link data-trunk rel="rust" data-bin="taskagent-web" data-wasm-opt="z"
+        data-wasm-opt-params="--enable-bulk-memory --enable-mutable-globals --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue" />
+  <link data-trunk rel="css" href="style.css" />
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0" aria-hidden="true">
+    <symbol id="pri-p0" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="7" fill="currentColor"/>
+      <path d="M8 4v5" stroke="#0b0d10" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="8" cy="11.6" r="1.05" fill="#0b0d10"/>
+    </symbol>
+    <symbol id="pri-p1" viewBox="0 0 16 16">
+      <rect x="2"    y="9"   width="2.5" height="5"    rx="0.5" fill="currentColor"/>
+      <rect x="6.75" y="5.5" width="2.5" height="8.5"  rx="0.5" fill="currentColor"/>
+      <rect x="11.5" y="2"   width="2.5" height="12"   rx="0.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="pri-p2" viewBox="0 0 16 16">
+      <rect x="2"    y="9"   width="2.5" height="5"    rx="0.5" fill="currentColor"/>
+      <rect x="6.75" y="5.5" width="2.5" height="8.5"  rx="0.5" fill="currentColor"/>
+      <rect x="11.5" y="2"   width="2.5" height="12"   rx="0.5" fill="currentColor" opacity="0.2"/>
+    </symbol>
+    <symbol id="pri-p3" viewBox="0 0 16 16">
+      <rect x="2"    y="9"   width="2.5" height="5"    rx="0.5" fill="currentColor"/>
+      <rect x="6.75" y="5.5" width="2.5" height="8.5"  rx="0.5" fill="currentColor" opacity="0.2"/>
+      <rect x="11.5" y="2"   width="2.5" height="12"   rx="0.5" fill="currentColor" opacity="0.2"/>
+    </symbol>
+  </svg>
+</body>
+</html>

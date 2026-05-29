@@ -1,0 +1,45 @@
+[module]
+name         = "taskagent-web"
+kind         = "client"
+status       = "shipped"
+owner        = "clients"
+contract     = "/v1/* + WS"
+contract_min = "v1"
+repo_path    = "taskagent-web (standalone repo)"
+runtime      = "Rust/WASM (Leptos 0.7, csr)"
+
+[capabilities]
+needs = [
+  "TaskRead",
+  "TaskWrite",
+  "CommentRead",
+  "CommentWrite",
+  "ProjectRead",
+  "ProjectWrite",
+  "PlanRead",
+  "PlanWrite",
+  "RunRead",
+  "RunWrite",
+  "EventRead",
+  "WsConnect",
+  "AiInvoke",
+  "DocumentRead",
+  "DocumentWrite",
+  "TaskRelationRead",
+  "TaskRelationWrite",
+]
+optional = [
+  "AdminTokens",
+]
+
+[build]
+tool    = "trunk"
+profile = "release"
+out_dir = "dist"
+
+[serve]
+# Standalone repo: the OSS server no longer serves this UI. The dist/ bundle is
+# deployed behind any static host and points at the API server's /v1/* + /v1/ws.
+# On Cloud it is built with --public-url /app/ and baked into the cloud-server image.
+mode    = "static"
+mount   = "/app/ (cloud) or any static host"

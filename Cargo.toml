@@ -1,0 +1,57 @@
+# Standalone workspace — taskagent-web (Leptos CSR → WASM).
+#
+# This repo was extracted from the OSS monorepo (`apps/web-leptos`). It builds
+# independently and consumes the OSS crates read-only via `vendor/oss`, a symlink
+# to a sibling TaskAgent checkout (see scripts/link-oss.sh). The OSS server is now
+# a bare API + MCP backend and no longer bundles this UI.
+[workspace]
+# vendor/oss is a symlink into the OSS checkout; keep its crates out of this
+# workspace so their `*.workspace = true` fields resolve against the OSS root.
+exclude = ["vendor"]
+
+[package]
+name = "taskagent-web"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0 WITH Commons-Clause"
+
+[[bin]]
+name = "taskagent-web"
+path = "src/main.rs"
+
+[dependencies]
+leptos = { version = "0.7", features = ["csr"] }
+leptos_meta = "0.7"
+leptos_router = "0.7"
+wasm-bindgen = "0.2"
+gloo-net = { version = "0.6", features = ["http", "json", "websocket"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+console_error_panic_hook = "0.1"
+uuid = { version = "1.10", features = ["v4", "v7", "serde", "js"] }
+web-sys = { version = "0.3", features = [
+  "Window", "Storage", "Location", "Navigator", "Clipboard", "Document",
+  "HtmlAnchorElement", "Url", "Blob", "BlobPropertyBag",
+] }
+js-sys = "0.3"
+
+# OSS crates consumed via vendor/oss symlink (→ sibling taskagent checkout).
+taskagent-shared  = { path = "vendor/oss/crates/shared" }
+taskagent-domain  = { path = "vendor/oss/crates/domain" }
+taskagent-events  = { path = "vendor/oss/crates/events" }
+taskagent-api-dto = { path = "vendor/oss/crates/api-dto" }
+
+gloo-timers = { version = "0.3", features = ["futures"] }
+wasm-bindgen-futures = "0.4"
+futures-util = "0.3"
+
+# Size-optimised profile for the WASM bundle. Trunk reads
+# `cargo_profile = "release-wasm"` from Trunk.toml.
+[profile.release-wasm]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

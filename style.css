@@ -1,0 +1,1057 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #111418;
+  --surface: #1c2128;
+  --border:  #30363d;
+  --text:    #cdd9e5;
+  --muted:   #768390;
+  --accent:  #539bf5;
+  --done:    #3fb950;
+  --p0:      #f47067;
+  --p1:      #e09b44;
+  --p2:      #daaa3f;
+  --p3:      #636e7b;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Cascadia Code', 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 14px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+h1 {
+  color: var(--accent);
+  font-size: 1.4rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 1.5rem;
+}
+
+/* App layout */
+.app {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  width: 100%;
+}
+
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.header-row .composer {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-gear {
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.settings-gear:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem 1.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-header h2 {
+  color: var(--accent);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-close {
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.settings-close:hover { color: var(--text); }
+
+.settings-section {
+  margin-bottom: 1.25rem;
+}
+
+.settings-section h3 {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.settings-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 0.6rem;
+}
+
+.settings-hint code,
+.settings-steps code {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.settings-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.settings-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.settings-btn-secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.settings-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-token-box {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.settings-warning {
+  color: var(--p1);
+  font-size: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.settings-token {
+  display: block;
+  word-break: break-all;
+  font-size: 11px;
+  color: var(--done);
+  margin-bottom: 0.5rem;
+}
+
+.settings-error {
+  color: var(--p0);
+  font-size: 12px;
+  margin-top: 0.5rem;
+}
+
+.settings-steps {
+  margin: 0 0 0.75rem 1.1rem;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-snippet-wrap {
+  margin-top: 0.5rem;
+}
+
+.settings-snippet {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+  white-space: pre;
+}
+
+.main {
+  width: 100%;
+}
+
+.plans-aside {
+  width: 100%;
+}
+
+/* Project bar */
+.project-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.project-bar .tab {
+  font: inherit;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.project-bar .tab:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.project-bar .tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Plans aside */
+.plans-aside {
+  width: 100%;
+}
+
+.plans-aside-hidden {
+  display: none;
+}
+
+/* Plans panel */
+.plans-panel {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2rem;
+}
+
+.plans-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.plans-title {
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.plans-empty {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-size: 12px;
+}
+
+/* Plan card */
+.plan-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  background: var(--surface);
+}
+
+.plan-card.archived {
+  opacity: 0.45;
+}
+
+.plan-row {
+  display: grid;
+  grid-template-columns: 1fr 6rem 9rem auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+}
+
+.plan-title {
+  color: var(--text);
+}
+
+/* Plan status badge */
+.plan-status {
+  font-size: 11px;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.plan-status-active    { color: var(--done);   border-color: var(--done); }
+.plan-status-draft     { color: var(--p2);     border-color: var(--p2); }
+.plan-status-completed { color: var(--accent); border-color: var(--accent); }
+.plan-status-abandoned { color: var(--muted); }
+
+.plan-pct {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Plan actions */
+.plan-actions {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.plan-mini {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.plan-mini:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.plan-mini.danger:hover {
+  border-color: var(--p0);
+  color: var(--p0);
+}
+
+/* Composer */
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 1.5rem;
+}
+
+.composer-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  outline: none;
+}
+
+.composer-input:focus { border-color: var(--accent); }
+
+.composer-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.composer-btn:hover { opacity: 0.85; }
+
+.composer-status {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 6rem;
+}
+
+/* Task groups */
+.task-groups {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+}
+
+.task-group {
+  display: block;
+  margin: 0 0 0.5rem 0;
+}
+
+.task-group__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.task-group__header:hover { background: rgba(83, 155, 245, 0.06); }
+
+.task-group__header.collapsed {
+  margin-bottom: 0;
+}
+
+.task-group__toggle {
+  display: inline-block;
+  width: 1ch;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.task-group__label {
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.task-group__count {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
+  padding: 0 0.4rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+}
+
+/* Per-status accent on the header's left edge */
+.task-group__header--in-progress { border-left: 3px solid #539bf5; }
+.task-group__header--in-review   { border-left: 3px solid #d29922; }
+.task-group__header--todo        { border-left: 3px solid #8957e5; }
+.task-group__header--inbox       { border-left: 3px solid var(--muted); }
+.task-group__header--done        { border-left: 3px solid #3fb950; }
+.task-group__header--cancelled   { border-left: 3px solid #f85149; }
+
+/* Task list */
+.task-list {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.25rem 0;
+}
+
+.task-row-wrapper {
+  display: block;
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  cursor: pointer;
+}
+
+.task-row:hover { background: var(--surface); }
+.task-row.expanded { background: rgba(83, 155, 245, 0.05); }
+.task-row.done { opacity: 0.55; }
+.task-row.done .title { text-decoration: line-through; }
+
+/* ID badge */
+.id-badge {
+  flex: 0 0 auto;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
+}
+.id-badge:hover {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Priority bar icon (SVG sprite ref) */
+.priority {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  color: var(--muted);
+  cursor: help;
+}
+.priority-p0 { color: var(--p0); }
+.priority-p1 { color: var(--p1); }
+.priority-p2 { color: var(--p2); }
+.priority-p3 { color: var(--p3); }
+
+/* Title */
+.task-row .title {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status pill */
+.status {
+  flex: 0 0 auto;
+  min-width: 5rem;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.status-inbox    { color: var(--muted); }
+.status-todo     { color: var(--text); }
+.status-in-progress { color: var(--accent); }
+.status-done     { color: var(--done); }
+
+/* Actor chips */
+.actor-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: help;
+}
+
+.actor-chip.actor-user  { border-color: rgba(83, 155, 245, 0.35); }
+.actor-chip.actor-agent { border-color: rgba(218, 170, 63, 0.4); }
+
+/* "From AI" badge (PR1 §10) — inline pill on rows whose creator is an Agent.
+   Same amber palette as `.actor-chip.actor-agent` for visual continuity. */
+.ai-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid rgba(218, 170, 63, 0.45);
+  color: var(--p1);
+  background: rgba(218, 170, 63, 0.08);
+  border-radius: 999px;
+  cursor: help;
+  user-select: none;
+}
+
+/* Blocked indicator — replaces the status pill in collapsed rows. */
+.status.status-blocked {
+  color: var(--p0);
+  font-weight: 500;
+  cursor: help;
+}
+
+/* Project chip */
+.project-chip {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface);
+  max-width: 6.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-chip.inbox { color: var(--muted); border-style: dashed; }
+
+/* Done button */
+.done-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.done-btn:hover {
+  opacity: 1;
+  color: var(--done);
+  border-color: var(--done);
+}
+
+/* Task body (expanded) */
+.task-body {
+  padding: 0.5rem 0.75rem 0.75rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--surface);
+}
+
+.task-body-section { white-space: pre-wrap; }
+.task-body-section + .task-body-section { margin-top: 0.5rem; }
+.task-body-section.empty { font-style: italic; opacity: 0.6; }
+
+/* Relations block in expanded task body */
+.task-body-section.relations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-top: 1px dashed var(--border);
+  padding-top: 0.5rem;
+  font-size: 12px;
+}
+
+.task-body-section.relations-loading,
+.task-body-section.relations-error,
+.task-body-section.relations-empty {
+  font-style: italic;
+  opacity: 0.55;
+  font-size: 12px;
+}
+
+.task-body-section.relations-error { color: var(--p0); opacity: 0.85; }
+
+.relation-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  line-height: 1.4;
+}
+
+.relation-label {
+  flex: 0 0 8rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.relation-group.blocked-by .relation-label { color: var(--p0); }
+.relation-group.blocks     .relation-label { color: var(--p1); }
+.relation-group.relates    .relation-label { color: var(--accent); }
+.relation-group.duplicates,
+.relation-group.duplicated-by { opacity: 0.75; }
+
+.relation-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.relation-chip {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: help;
+}
+
+.relation-group.blocked-by .relation-chip { border-color: rgba(244, 112, 103, 0.45); }
+.relation-group.blocks     .relation-chip { border-color: rgba(224, 155, 68, 0.45); }
+.relation-group.relates    .relation-chip { border-color: rgba(83, 155, 245, 0.35); }
+
+/* Loading */
+.loading {
+  color: var(--muted);
+  padding: 1rem 0;
+  font-size: 13px;
+}
+
+/* Skeleton list — shown while a project's tasks are fetching for the
+   first time (no cached snapshot yet). Mirrors .task-row geometry so the
+   real rows snap into place without layout shift. */
+.skeleton .task-row {
+  cursor: default;
+  pointer-events: none;
+}
+.skeleton-row {
+  align-items: center;
+}
+.skeleton-bar {
+  display: inline-block;
+  height: 0.8rem;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-bar--priority { width: 14px; height: 14px; border-radius: 50%; }
+.skeleton-bar--id       { width: 64px; }
+.skeleton-bar--title    { width: 60%; flex: 1; }
+.skeleton-bar--status   { width: 72px; }
+.skeleton-bar--header   { width: 96px; height: 0.7rem; }
+.skeleton-header { pointer-events: none; }
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Plan chips (for W3.2 task-row expanded section) */
+.plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-chip-active    { border-color: var(--done);    color: var(--done); }
+.plan-chip-draft     { border-color: var(--p2);      color: var(--p2); }
+.plan-chip-completed { border-color: var(--accent);  color: var(--accent); }
+.plan-chip-abandoned { opacity: 0.55; text-decoration: line-through; }
+
+/* Task id (full, in expanded body) */
+.task-id {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
+}
+.task-id:hover { opacity: 1; color: var(--accent); border-color: var(--border); }
+.task-id.copied { color: var(--done); opacity: 1; border-color: var(--done); }
+
+.task-id-full {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.task-id-full:hover { border-color: var(--accent); color: var(--accent); }
+.task-id-full.copied { color: var(--done); border-color: var(--done); }
+
+.empty { color: var(--muted); padding: 1rem 0; }
+
+/* ── Plan treeview (W4) ─────────────────────────────────────────────────────── */
+
+.plan-tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-tree-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-tree-node.archived {
+  opacity: 0.45;
+}
+
+/* Treeview row: extends .plan-row with leading chevron column + depth indent.
+   The --depth CSS variable is set inline per node; fallback 0 = no indent.
+   Declaration order matters: .plan-tree-row overrides .plan-row's padding-left. */
+.plan-tree-row {
+  grid-template-columns: 1.2rem 1fr 6rem 7rem auto;
+  padding-left: calc(var(--depth, 0) * 1rem + 0.6rem);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+  background: var(--surface);
+}
+
+.plan-tree-row:hover {
+  border-color: var(--muted);
+}
+
+/* Expand/collapse chevron (▶ / ▼ / non-breaking space for leaves) */
+.plan-chevron {
+  color: var(--muted);
+  font-size: 9px;
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+  line-height: 1;
+}
+
+.plan-chevron:hover {
+  color: var(--accent);
+}
+
+/* Children container — visibility toggled via inline display:none/block */
+.plan-children {
+  /* layout driven by children's own --depth indent */
+}
+
+/* ── Documents panel (PR1 §10 task #8) ─────────────────────────────────────── */
+
+.documents-panel {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2rem;
+}
+
+.documents-aside-hidden {
+  display: none;
+}
+
+.documents-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.documents-title {
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.documents-empty {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-size: 12px;
+}
+
+.documents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.document-card {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.document-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-left: 3px solid var(--accent);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.document-card__header:hover { background: rgba(83, 155, 245, 0.06); }
+
+.document-card__toggle {
+  display: inline-block;
+  width: 1ch;
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.document-card__title {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-card__kind {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.document-card__body {
+  padding: 0.5rem 0.75rem 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
+/* Raw markdown view — `<pre>` preserves whitespace; word-wrap so very long
+   lines (e.g. URLs) don't introduce a horizontal scrollbar. */
+.document-card__view {
+  font-family: 'Cascadia Code', 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.5rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.document-card__empty {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 12px;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.document-card__textarea {
+  width: 100%;
+  font-family: 'Cascadia Code', 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.5rem;
+  resize: vertical;
+  outline: none;
+}
+
+.document-card__textarea:focus { border-color: var(--accent); }
+
+.document-card__error {
+  color: var(--p0);
+  font-size: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.document-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.document-card__btn {
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.2rem 0.7rem;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: border-color 0.1s, color 0.1s, background 0.1s;
+}
+
+.document-card__btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.document-card__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.document-card__btn--primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.document-card__btn--primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
