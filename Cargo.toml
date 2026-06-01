@@ -1,9 +1,10 @@
 # Standalone workspace — taskagent-web (Leptos CSR → WASM).
 #
 # This repo was extracted from the OSS monorepo (`apps/web-leptos`). It builds
-# independently and consumes the OSS crates read-only via `vendor/oss`, a symlink
-# to a sibling TaskAgent checkout (see scripts/link-oss.sh). The OSS server is now
-# a bare API + MCP backend and no longer bundles this UI.
+# independently against a released TaskAgent OSS core. During local development,
+# `vendor/oss` may point at a sibling checkout (see scripts/link-oss.sh) as a
+# path override. The OSS server is a bare API + MCP backend and no longer bundles
+# this read-only viewer.
 [workspace]
 # vendor/oss is a symlink into the OSS checkout; keep its crates out of this
 # workspace so their `*.workspace = true` fields resolve against the OSS root.
@@ -31,12 +32,12 @@ serde_json = "1.0"
 console_error_panic_hook = "0.1"
 uuid = { version = "1.10", features = ["v4", "v7", "serde", "js"] }
 web-sys = { version = "0.3", features = [
-  "Window", "Storage", "Location", "Navigator", "Clipboard", "Document",
-  "HtmlAnchorElement", "Url", "Blob", "BlobPropertyBag",
+  "Window", "Storage", "Location", "Navigator", "Clipboard",
 ] }
-js-sys = "0.3"
 
-# OSS crates consumed via vendor/oss symlink (→ sibling taskagent checkout).
+# OSS crates. Release builds should pin these to a TaskAgent git tag; this
+# checkout keeps path dependencies as the local development override until the
+# first immutable public tag is cut.
 taskagent-shared  = { path = "vendor/oss/crates/shared" }
 taskagent-domain  = { path = "vendor/oss/crates/domain" }
 taskagent-events  = { path = "vendor/oss/crates/events" }

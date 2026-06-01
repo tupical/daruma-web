@@ -10,21 +10,21 @@ See module.toml for the machine-readable manifest.
 
 # taskagent-web
 
-Leptos/WASM client — the canonical browser UI for TaskAgent. It talks to the
-core only through the public `/v1/*` REST API and the `/v1/ws` WebSocket; no
-shared in-process state.
+Leptos/WASM client — the canonical read-only browser viewer for TaskAgent OSS.
+It talks to the core only through the public `/v1/*` REST API and the `/v1/ws`
+WebSocket; no shared in-process state and no write/admin controls.
 
 This is a **standalone repository**, extracted from the OSS monorepo (formerly
-`apps/web-leptos`). It consumes the OSS crates read-only via `vendor/oss`, a
-symlink to a sibling TaskAgent checkout (the same pattern `taskagent-cloud`
-uses). The OSS `taskagent-server` is now a bare API + MCP backend and no longer
-bundles or serves this UI.
+`apps/web-leptos`). Release builds are intended to pin the OSS crates to a
+TaskAgent git tag; local development may use `vendor/oss`, a symlink to a
+sibling TaskAgent checkout. The OSS `taskagent-server` is now a bare API + MCP
+backend and no longer bundles or serves this UI.
 
 ## Layout
 
 ```
 taskagent-web/
-├── Cargo.toml          # standalone workspace + crate (vendor/oss path deps)
+├── Cargo.toml          # standalone workspace + crate (OSS core deps)
 ├── Trunk.toml          # asset pipeline config
 ├── module.toml         # module manifest
 ├── index.html          # bootstrap HTML for the WASM bundle
@@ -34,8 +34,8 @@ taskagent-web/
 │   ├── main.rs         # Trunk entry — mounts <App/>
 │   ├── api.rs          # gloo-net HTTP client against /v1/*
 │   ├── ws.rs           # WebSocket client + reconnect/resync
-│   └── components/     # task list, plans panel, composer, etc.
-├── vendor/oss          # symlink → ../taskagent (not committed)
+│   └── components/     # task list, plans panel, project/doc viewers
+├── vendor/oss          # local dev symlink → ../taskagent (not committed)
 └── dist/               # build output (gitignored)
 ```
 
@@ -65,27 +65,29 @@ trunk serve   # proxies /v1/* and /v1/ws to 127.0.0.1:8080 (see Trunk.toml)
 ## Serve
 
 The server no longer serves the UI. Deploy the `dist/` bundle behind any static
-host and point it at the API server's `/v1/*` + `/v1/ws`. On TaskAgent Cloud the
-bundle is built with `--public-url /app/` and baked into the `cloud-server`
-image (the cloud Dockerfile builds this repo via its own `vendor` wiring).
+host and point it at the API server's `/v1/*` + `/v1/ws`.
 
-## Settings — MCP token & binary
+## OSS core dependency
 
-Open **Settings** (gear icon in the header):
+The intended production dependency model is a pinned TaskAgent OSS git tag, for
+example `taskagent-v0.1.0`. Until the first immutable public tag is cut, this
+checkout keeps `vendor/oss` path dependencies as the local development override.
+The module manifest records both the intended source and the dev override.
 
-1. **Generate MCP token** — mints a `ta_svc_*` token; the secret is shown once.
-2. **Download taskagent-mcp** — Windows (`.exe`) or Linux binary from
-   `GET /v1/downloads/taskagent-mcp/{platform}` (bundled in the server image).
-3. **Copy mcp.json snippet** — paste into `.cursor/mcp.json` with your binary path.
+## Read-only scope
 
-Requires a bearer token with `token:write` to mint MCP tokens (bootstrap/admin PAT).
+The OSS web UI is an observability surface only. It can list and inspect tasks,
+projects, plans, runs, documents, relations, and realtime WS updates. It does
+not create tasks, complete tasks, edit documents, mutate plans, call AI parse
+endpoints, mint MCP tokens, or download MCP binaries. Those workflows belong to
+MCP/CLI/desktop/embed clients or to TaskAgent Cloud.
 
 ## Module contract
 
 This client consumes:
 
 - **REST** — `/v1/tasks`, `/v1/projects`, `/v1/plans`, `/v1/runs`,
-  `/v1/documents`, `/v1/comments`, `/v1/ai/*`, `/v1/healthz`.
+  `/v1/documents`, `/v1/comments`, `/v1/relations/query`, `/v1/healthz`.
 - **WS** — `/v1/ws` subprotocol `taskagent.v1`; subscribes to
   `Tasks`, `Comments`, `Plans`, `Runs`, `Presence`, optional
   `AgentStatus` channels.
@@ -103,5 +105,6 @@ shapes from `taskagent-api-dto`.
 
 WASM/UI tests are not run on every push (no headless browser in CI
 today). Smoke verification is manual: after `trunk build --release`,
-open the dev server and exercise the golden path (create task,
-complete task, open plan, attach task to plan, see WS update).
+open the dev server and exercise the golden path: select a project,
+inspect tasks/plans/documents, expand a task, and see WS updates arrive
+without any write-capability token.

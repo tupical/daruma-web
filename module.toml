@@ -7,30 +7,28 @@ contract     = "/v1/* + WS"
 contract_min = "v1"
 repo_path    = "taskagent-web (standalone repo)"
 runtime      = "Rust/WASM (Leptos 0.7, csr)"
+read_only    = true
+
+[core]
+source       = "git"
+repo         = "https://github.com/mcpbox-ru/taskagent"
+version      = "0.1.0"
+tag          = "taskagent-v0.1.0"
+dev_override = "vendor/oss -> ../taskagent"
 
 [capabilities]
 needs = [
   "TaskRead",
-  "TaskWrite",
   "CommentRead",
-  "CommentWrite",
   "ProjectRead",
-  "ProjectWrite",
   "PlanRead",
-  "PlanWrite",
   "RunRead",
-  "RunWrite",
   "EventRead",
   "WsConnect",
-  "AiInvoke",
   "DocumentRead",
-  "DocumentWrite",
   "TaskRelationRead",
-  "TaskRelationWrite",
 ]
-optional = [
-  "AdminTokens",
-]
+optional = []
 
 [build]
 tool    = "trunk"

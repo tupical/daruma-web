@@ -1,6 +1,4 @@
-use crate::components::{
-    Composer, DocumentsPanel, PlansPanel, ProjectBar, SettingsButton, SettingsPanel, TaskList,
-};
+use crate::components::{DocumentsPanel, PlansPanel, ProjectBar, TaskList};
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
 use leptos_router::components::{Route, Router, Routes};
@@ -25,7 +23,6 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn WorkspaceApp() -> impl IntoView {
-    let settings_open = RwSignal::new(false);
     let ctx = use_context::<ProjectsCtx>().expect("ProjectsCtx");
     let params = use_params_map();
 
@@ -44,12 +41,10 @@ fn WorkspaceApp() -> impl IntoView {
         <div class="app">
             <div class="header">
                 <div class="header-row">
-                    <Composer />
-                    <SettingsButton open=settings_open />
+                    <div class="viewer-title">"TaskAgent OSS Viewer"</div>
                 </div>
                 <ProjectBar />
             </div>
-            <SettingsPanel open=settings_open />
             <main class="main">
                 <TaskList />
             </main>

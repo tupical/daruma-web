@@ -1,10 +1,9 @@
-use crate::api::{self, Command, CommandEnvelope, TaskRelations};
+use crate::api::{self, TaskRelations};
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::relations_ctx::RelationsCtx;
 use leptos::prelude::*;
 use taskagent_domain::{Actor, Priority, Relation, RelationKind, Task};
 use taskagent_shared::ProjectId;
-use uuid::Uuid;
 
 #[component]
 pub fn TaskRow(task: Task) -> impl IntoView {
@@ -22,7 +21,6 @@ pub fn TaskRow(task: Task) -> impl IntoView {
     let priority = task.priority;
     let project_id: Option<ProjectId> = task.project_id;
 
-    let task_id_for_done = task.id;
     let this_task_id = task.id;
 
     // §3.5 Authorship — read directly from denormalized Task fields (scale-10k:
@@ -105,21 +103,6 @@ pub fn TaskRow(task: Task) -> impl IntoView {
     let (priority_class, priority_symbol, priority_title) = priority_repr(priority);
     let priority_href = format!("#{priority_symbol}");
 
-    let on_done = move |e: web_sys::MouseEvent| {
-        e.stop_propagation();
-        let id = task_id_for_done;
-        wasm_bindgen_futures::spawn_local(async move {
-            let envelope = CommandEnvelope {
-                command: Command::CompleteTask { id },
-                actor: Actor::User,
-                client_command_id: Some(Uuid::new_v4()),
-            };
-            if let Err(err) = crate::api::dispatch_command(&envelope).await {
-                leptos::logging::log!("dispatch CompleteTask failed: {:?}", err);
-            }
-        });
-    };
-
     view! {
         <li class="task-row-wrapper">
             <div class=row_class on:click=on_toggle>
@@ -191,20 +174,6 @@ pub fn TaskRow(task: Task) -> impl IntoView {
                     }.into_any()
                 }}
 
-                { if status != taskagent_domain::Status::Done {
-                    view! {
-                        <button
-                            type="button"
-                            class="done-btn"
-                            on:click=on_done
-                            title="Mark done"
-                        >
-                            "✓"
-                        </button>
-                    }.into_any()
-                } else {
-                    view! { <span></span> }.into_any()
-                }}
             </div>
 
             // Expanded body with description + relations

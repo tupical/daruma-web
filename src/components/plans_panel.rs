@@ -1,20 +1,11 @@
-use crate::api::{self, Command, CommandEnvelope};
+use crate::api;
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::HashMap;
-use taskagent_domain::{Actor, Plan, PlanStatus};
+use taskagent_domain::{Plan, PlanStatus};
 use taskagent_events::{Event, EventEnvelope};
-use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
-
-fn envelope(cmd: Command) -> CommandEnvelope {
-    CommandEnvelope {
-        command: cmd,
-        actor: Actor::User,
-        client_command_id: Some(Uuid::new_v4()),
-    }
-}
 
 fn status_class(status: &PlanStatus) -> &'static str {
     match status {
@@ -121,42 +112,12 @@ fn plan_node_view(node: PlanTreeNode, depth: usize) -> AnyView {
         .map(|child| plan_node_view(child, depth + 1))
         .collect();
 
-    let plan_id = plan.id;
     let title = plan.title.clone();
     let status = plan.status;
     let criteria_count = plan.success_criteria.len();
     let sc = status_class(&status);
     let sl = status_label(&status);
     let is_abandoned = status == PlanStatus::Abandoned || plan.archived_at.is_some();
-
-    // ── Action handlers ───────────────────────────────────────────────────────
-
-    let activate = {
-        let id = plan_id.as_uuid().to_string();
-        move |_| {
-            let id = id.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let _ = api::set_plan_status(&id, PlanStatus::Active).await;
-            });
-        }
-    };
-
-    let complete = {
-        let id = plan_id.to_string();
-        move |_| {
-            let id = id.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let _ = api::set_plan_status(&id, PlanStatus::Completed).await;
-            });
-        }
-    };
-
-    let archive = move |_| {
-        wasm_bindgen_futures::spawn_local(async move {
-            let env = envelope(Command::ArchivePlan { id: plan_id });
-            let _ = api::dispatch_command(&env).await;
-        });
-    };
 
     // Inline CSS custom property drives depth-based indent in stylesheet:
     //   padding-left: calc(var(--depth, 0) * 1rem + 0.6rem)
@@ -190,53 +151,6 @@ fn plan_node_view(node: PlanTreeNode, depth: usize) -> AnyView {
                 // full PlanProgress per plan is expensive; criteria count is in-band).
                 <span class="plan-pct" title="success criteria count">
                     {format!("{criteria_count} sc")}
-                </span>
-                <span class="plan-actions">
-                    {if status == PlanStatus::Draft {
-                        view! {
-                            <button
-                                type="button"
-                                class="plan-mini"
-                                title="Activate plan"
-                                on:click=activate
-                            >
-                                "▶ activate"
-                            </button>
-                        }
-                        .into_any()
-                    } else {
-                        view! { <span /> }.into_any()
-                    }}
-                    {if status == PlanStatus::Active {
-                        view! {
-                            <button
-                                type="button"
-                                class="plan-mini"
-                                title="Mark plan completed"
-                                on:click=complete
-                            >
-                                "✓ done"
-                            </button>
-                        }
-                        .into_any()
-                    } else {
-                        view! { <span /> }.into_any()
-                    }}
-                    {if !is_abandoned {
-                        view! {
-                            <button
-                                type="button"
-                                class="plan-mini danger"
-                                title="Archive plan"
-                                on:click=archive
-                            >
-                                "✕"
-                            </button>
-                        }
-                        .into_any()
-                    } else {
-                        view! { <span /> }.into_any()
-                    }}
                 </span>
             </div>
             // Children container: rendered once, shown/hidden via display property only.

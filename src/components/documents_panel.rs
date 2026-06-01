@@ -3,16 +3,14 @@
 //! Shown on the right rail when a single project is selected. Lists the
 //! project's `Document`s (auto-created `Interview` + `Human Log` plus any
 //! user-created additions), each rendered as a collapsible card with a
-//! read-only view of the raw markdown body and an inline `Edit` →
-//! `<textarea>` + `Save` flow that issues `PATCH /v1/documents/{id}` with
-//! `{content}`.
+//! read-only view of the raw markdown body.
 //!
 //! There is no in-browser markdown rendering library wired into this crate,
 //! so the read-only view shows the raw markdown inside a `<pre>` block —
 //! whitespace-preserving and adequate for the artefacts these documents
 //! hold (Interview transcripts, Human Log entries).
 
-use crate::api::{self, DocumentPatch};
+use crate::api;
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
@@ -20,7 +18,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use taskagent_domain::{Document, DocumentKind};
 use taskagent_events::{Event, EventEnvelope};
-use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 
 fn kind_label(k: DocumentKind) -> &'static str {
@@ -211,7 +208,7 @@ pub fn DocumentsPanel() -> impl IntoView {
     }
 }
 
-/// One document card: collapsible header + body (view / edit modes).
+/// One document card: collapsible header + read-only body.
 ///
 /// Plain function (not `#[component]`) to keep parity with `plan_node_view`
 /// in `plans_panel.rs` — avoids `IntoView` type juggling when collecting
@@ -219,7 +216,6 @@ pub fn DocumentsPanel() -> impl IntoView {
 fn document_card_view(doc: Document) -> AnyView {
     // `Rc` so handler closures (Fn, called many times) can clone cheaply
     // without taking ownership.
-    let doc_id_str: Arc<String> = Arc::new(doc.id.to_string());
     let title = doc.title.clone();
     let kind = doc.kind;
     let kind_lbl = kind_label(kind);
@@ -230,138 +226,24 @@ fn document_card_view(doc: Document) -> AnyView {
     // artefact during intake).
     let expanded = RwSignal::new(matches!(kind, DocumentKind::Interview));
 
-    // Edit-mode state. `draft` holds the in-flight textarea contents; it
-    // resets to the document's current body whenever Edit is (re-)entered.
-    let editing = RwSignal::new(false);
-    let draft: RwSignal<String> = RwSignal::new(doc.content.clone());
-    // Surfaced inline below the textarea when PATCH fails.
-    let save_error: RwSignal<Option<String>> = RwSignal::new(None);
-    // Disables the Save/Cancel buttons while a request is in flight.
-    let saving = RwSignal::new(false);
-
     let on_toggle = move |_| {
         expanded.update(|v| *v = !*v);
     };
 
-    let on_textarea_input = move |ev: web_sys::Event| {
-        if let Some(target) = ev.target() {
-            if let Ok(ta) = target.dyn_into::<web_sys::HtmlTextAreaElement>() {
-                draft.set(ta.value());
-            }
-        }
-    };
-
-    // Body section — switches between view-mode (pre + Edit) and
-    // edit-mode (textarea + Cancel/Save). Each handler is recreated on
-    // every render of this `move ||` block so the outer closure stays
-    // `Fn`-compatible without juggling `Arc<dyn Fn>` wrappers.
+    // Body section — read-only OSS viewer.
     let initial_for_body = Arc::clone(&initial_content);
-    let id_for_body = Arc::clone(&doc_id_str);
     let body = move || {
-        if editing.get() {
-            let id_for_save = Arc::clone(&id_for_body);
-            let on_cancel = move |e: web_sys::MouseEvent| {
-                e.stop_propagation();
-                editing.set(false);
-                save_error.set(None);
-            };
-            let on_save = move |e: web_sys::MouseEvent| {
-                e.stop_propagation();
-                if saving.get_untracked() {
-                    return;
-                }
-                saving.set(true);
-                save_error.set(None);
-                let id = (*id_for_save).clone();
-                let next = draft.get_untracked();
-                wasm_bindgen_futures::spawn_local(async move {
-                    let patch = DocumentPatch {
-                        title: None,
-                        content: Some(next),
-                    };
-                    match api::patch_document(&id, &patch).await {
-                        Ok(_) => {
-                            editing.set(false);
-                            // The DocumentContentReplaced event arriving on
-                            // Channel::Documents applies into the cache via
-                            // the WS-apply Effect.
-                        }
-                        Err(err) => {
-                            leptos::logging::log!("patch_document failed: {:?}", err);
-                            save_error.set(Some(err.to_string()));
-                        }
-                    }
-                    saving.set(false);
-                });
-            };
+        let body_text = (*initial_for_body).clone();
+        if body_text.trim().is_empty() {
             view! {
-                <textarea
-                    class="document-card__textarea"
-                    prop:value=move || draft.get()
-                    on:input=on_textarea_input
-                    rows="14"
-                    spellcheck="false"
-                />
-                {move || save_error.get().map(|msg| view! {
-                    <p class="document-card__error">
-                        {format!("Save failed: {msg}")}
-                    </p>
-                })}
-                <div class="document-card__actions">
-                    <button
-                        type="button"
-                        class="document-card__btn"
-                        on:click=on_cancel
-                        disabled=move || saving.get()
-                    >
-                        "Cancel"
-                    </button>
-                    <button
-                        type="button"
-                        class="document-card__btn document-card__btn--primary"
-                        on:click=on_save
-                        disabled=move || saving.get()
-                    >
-                        {move || if saving.get() { "Saving…" } else { "Save" }}
-                    </button>
-                </div>
+                <p class="document-card__empty">
+                    "(empty)"
+                </p>
             }
             .into_any()
         } else {
-            let body_text = (*initial_for_body).clone();
-            let body_for_view = body_text.clone();
-            let initial_for_edit = Arc::clone(&initial_for_body);
-            let on_edit = move |e: web_sys::MouseEvent| {
-                e.stop_propagation();
-                draft.set((*initial_for_edit).clone());
-                save_error.set(None);
-                editing.set(true);
-                expanded.set(true);
-            };
-            let view_body = if body_text.trim().is_empty() {
-                view! {
-                    <p class="document-card__empty">
-                        "(empty — click Edit to add content)"
-                    </p>
-                }
-                .into_any()
-            } else {
-                view! {
-                    <pre class="document-card__view">{body_for_view}</pre>
-                }
-                .into_any()
-            };
             view! {
-                {view_body}
-                <div class="document-card__actions">
-                    <button
-                        type="button"
-                        class="document-card__btn"
-                        on:click=on_edit
-                    >
-                        "Edit"
-                    </button>
-                </div>
+                <pre class="document-card__view">{body_text}</pre>
             }
             .into_any()
         }
