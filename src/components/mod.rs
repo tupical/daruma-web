@@ -12,5 +12,3 @@ pub use plans_panel::PlansPanel;
 pub use project_bar::ProjectBar;
 pub use settings_panel::{SettingsButton, SettingsPanel};
 pub use task_list::TaskList;
-#[allow(unused_imports)]
-pub use task_row::TaskRow;
