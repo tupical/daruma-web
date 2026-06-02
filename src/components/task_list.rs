@@ -5,9 +5,9 @@ use crate::relations_ctx::RelationsCtx;
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
-use taskagent_domain::{NewTask, Priority, Status, Task};
+use taskagent_domain::{NewTask, Priority, Status, Task, TaskPatch};
 use taskagent_events::{Event, EventEnvelope};
-use taskagent_shared::{ProjectId, TaskId};
+use taskagent_shared::{time::Timestamp, ProjectId, TaskId};
 use wasm_bindgen_futures::spawn_local;
 
 /// Display order for status groups. Groups missing from `tasks` are skipped.
@@ -55,6 +55,33 @@ fn priority_rank(p: Priority) -> u8 {
 
 fn sort_tasks(ts: &mut [Task]) {
     ts.sort_by_key(|t| priority_rank(t.priority));
+}
+
+/// Apply a WS `TaskUpdated` patch without calling `TaskPatch::apply` (that sets
+/// `updated_at` via `time::now()`, which panics on wasm without chrono wasmbind).
+fn apply_task_patch(patch: &TaskPatch, task: &mut Task, at: Timestamp) {
+    if let Some(t) = &patch.title {
+        task.title = t.clone();
+    }
+    if let Some(d) = &patch.description {
+        task.description = d.clone();
+    }
+    if let Some(s) = patch.status {
+        task.status = s;
+    }
+    if let Some(p) = patch.priority {
+        task.priority = p;
+    }
+    if let Some(t) = &patch.triage_state {
+        task.triage_state = t.clone();
+    }
+    if let Some(d) = &patch.due_at {
+        task.due_at = d.clone();
+    }
+    if let Some(p) = &patch.project_id {
+        task.project_id = p.clone();
+    }
+    task.updated_at = at;
 }
 
 /// String key for the per-filter cache. `all` and `inbox` are sentinels;
@@ -149,7 +176,7 @@ fn apply_event_to_vec(
         Event::TaskUpdated { task_id, patch } => {
             let resort = patch.priority.is_some();
             if let Some(t) = list.iter_mut().find(|t| t.id == *task_id) {
-                patch.clone().apply(t);
+                apply_task_patch(patch, t, env.occurred_at);
             }
             if resort {
                 sort_tasks(list);

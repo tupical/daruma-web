@@ -4,6 +4,7 @@ mod api;
 mod app;
 mod auth;
 mod components;
+mod host_shell;
 mod projects_ctx;
 mod relations_ctx;
 mod ws;
@@ -16,6 +17,7 @@ fn main() {
     let ws_ctx = ws::spawn_ws(auth::current().unwrap_or_default());
     leptos::mount::mount_to_body(move || {
         provide_context(ws_ctx.clone());
+        provide_context(host_shell::init_host_shell());
         provide_context(projects_ctx::init_projects_ctx());
         provide_context(relations_ctx::RelationsCtx::new());
         view! { <App /> }

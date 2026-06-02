@@ -53,14 +53,27 @@ sh scripts/link-oss.sh    # one-time: vendor/oss → ../taskagent
 trunk build --release
 ```
 
+The WASM target needs `chrono` with the `wasmbind` feature (declared in
+`Cargo.toml`). Without it, applying live WS `TaskUpdated` / `PlanUpdated`
+events panics with `time not implemented on this platform`.
+
 Output lands in `dist/` — `index.html`, the hashed CSS, and the hashed
 `taskagent-web-*.{js,wasm}`.
 
 For development with hot reload:
 
 ```bash
-trunk serve   # proxies /v1/* and /v1/ws to 127.0.0.1:8080 (see Trunk.toml)
+# Terminal 1 — API (sibling taskagent checkout)
+cd ../taskagent && just server
+# SQLite: ~/.agents/taskagent/data/ (see local-dev-data.md)
+
+# Terminal 2 — UI (this repo)
+NO_COLOR=false trunk serve   # proxies /v1/* to 127.0.0.1:8080 (Trunk.toml)
 ```
+
+**Database:** `~/.agents/taskagent/data/taskagent.sqlite` — set only via
+`TASKAGENT_DATA_DIR` if you need a non-default copy. See
+`../taskagent/docs/guides/local-dev-data.md` and `scripts/dev-stack.sh`.
 
 ## Serve
 

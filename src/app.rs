@@ -1,4 +1,4 @@
-use crate::components::{DocumentsPanel, PlansPanel, ProjectBar, TaskList};
+use crate::components::{DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, TaskList};
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
 use leptos_router::components::{Route, Router, Routes};
@@ -42,6 +42,7 @@ fn WorkspaceApp() -> impl IntoView {
             <div class="header">
                 <div class="header-row">
                     <div class="viewer-title">"TaskAgent OSS Viewer"</div>
+                    <HostShellNav />
                 </div>
                 <ProjectBar />
             </div>

@@ -15,7 +15,6 @@ use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::HashMap;
-use std::sync::Arc;
 use taskagent_domain::{Document, DocumentKind};
 use taskagent_events::{Event, EventEnvelope};
 use wasm_bindgen_futures::spawn_local;
@@ -190,12 +189,16 @@ pub fn DocumentsPanel() -> impl IntoView {
                                         <p class="documents-empty">"No documents yet."</p>
                                     }.into_any()
                                 } else {
-                                    let cards: Vec<AnyView> = ds
-                                        .into_iter()
-                                        .map(document_card_view)
-                                        .collect();
                                     view! {
-                                        <div class="documents-list">{cards}</div>
+                                        <div class="documents-list">
+                                            <For
+                                                each=move || docs.get()
+                                                key=|d: &Document| d.id
+                                                let:doc
+                                            >
+                                                {document_card_view(doc)}
+                                            </For>
+                                        </div>
                                     }.into_any()
                                 }
                             }}
@@ -214,12 +217,10 @@ pub fn DocumentsPanel() -> impl IntoView {
 /// in `plans_panel.rs` — avoids `IntoView` type juggling when collecting
 /// into `Vec<AnyView>`.
 fn document_card_view(doc: Document) -> AnyView {
-    // `Rc` so handler closures (Fn, called many times) can clone cheaply
-    // without taking ownership.
     let title = doc.title.clone();
     let kind = doc.kind;
     let kind_lbl = kind_label(kind);
-    let initial_content: Arc<String> = Arc::new(doc.content.clone());
+    let content = doc.content.clone();
 
     // Track per-card collapsed state. Default collapsed for `human_log`
     // (can grow large), expanded for `interview` (typically the active
@@ -230,20 +231,16 @@ fn document_card_view(doc: Document) -> AnyView {
         expanded.update(|v| *v = !*v);
     };
 
-    // Body section — read-only OSS viewer.
-    let initial_for_body = Arc::clone(&initial_content);
+    let content_body = content.clone();
     let body = move || {
-        let body_text = (*initial_for_body).clone();
-        if body_text.trim().is_empty() {
+        if content_body.trim().is_empty() {
             view! {
-                <p class="document-card__empty">
-                    "(empty)"
-                </p>
+                <p class="document-card__empty">"(empty)"</p>
             }
             .into_any()
         } else {
             view! {
-                <pre class="document-card__view">{body_text}</pre>
+                <pre class="document-card__view">{content_body.clone()}</pre>
             }
             .into_any()
         }

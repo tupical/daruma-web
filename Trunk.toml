@@ -21,6 +21,14 @@ backend = "http://127.0.0.1:8080/v1/"
 rewrite = "/v1/"
 
 [[proxy]]
+backend = "http://127.0.0.1:8080/.well-known/taskagent-shell.json"
+rewrite = "/.well-known/taskagent-shell.json"
+
+[[proxy]]
+backend = "http://127.0.0.1:8080/workspaces"
+rewrite = "/workspaces"
+
+[[proxy]]
 backend = "ws://127.0.0.1:8080/v1/ws"
 rewrite = "/v1/ws"
 ws = true

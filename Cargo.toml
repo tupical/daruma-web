@@ -47,6 +47,11 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 wasm-bindgen-futures = "0.4"
 futures-util = "0.3"
 
+# OSS workspace enables chrono `clock` only; on wasm32-unknown-unknown that calls
+# `std::time`, which panics ("time not implemented on this platform"). Union
+# `wasmbind` into the resolved chrono crate for this WASM binary.
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock", "wasmbind"] }
+
 # Size-optimised profile for the WASM bundle. Trunk reads
 # `cargo_profile = "release-wasm"` from Trunk.toml.
 [profile.release-wasm]

@@ -61,6 +61,36 @@ h1 {
   text-transform: uppercase;
 }
 
+.host-shell-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 60%;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.host-shell-nav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.host-shell-nav__link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: none;
+}
+
+.host-shell-nav__link:hover {
+  text-decoration: underline;
+}
+
 .main {
   width: 100%;
 }

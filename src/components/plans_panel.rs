@@ -3,7 +3,8 @@ use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::HashMap;
-use taskagent_domain::{Plan, PlanStatus};
+use taskagent_domain::{Plan, PlanPatch, PlanStatus};
+use taskagent_shared::time::Timestamp;
 use taskagent_events::{Event, EventEnvelope};
 use wasm_bindgen_futures::spawn_local;
 
@@ -14,6 +15,25 @@ fn status_class(status: &PlanStatus) -> &'static str {
         PlanStatus::Completed => "plan-status plan-status-completed",
         PlanStatus::Abandoned => "plan-status plan-status-abandoned",
     }
+}
+
+fn apply_plan_patch(patch: &PlanPatch, plan: &mut Plan, at: Timestamp) {
+    if let Some(t) = &patch.title {
+        plan.title = t.clone();
+    }
+    if let Some(d) = &patch.description {
+        plan.description = d.clone();
+    }
+    if let Some(g) = &patch.goal {
+        plan.goal = g.clone();
+    }
+    if let Some(sc) = &patch.success_criteria {
+        plan.success_criteria = sc.clone();
+    }
+    if let Some(p) = &patch.parent_plan_id {
+        plan.parent_plan_id = p.clone();
+    }
+    plan.updated_at = at;
 }
 
 fn status_label(status: &PlanStatus) -> &'static str {
@@ -38,7 +58,7 @@ fn apply_plan_event(env: &EventEnvelope, list: &mut Vec<Plan>, project_id: &str)
         }
         Event::PlanUpdated { plan_id, patch } => {
             if let Some(p) = list.iter_mut().find(|p| p.id == *plan_id) {
-                patch.clone().apply(p);
+                apply_plan_patch(patch, p, env.occurred_at);
             }
         }
         Event::PlanStatusChanged { plan_id, to, .. } => {
