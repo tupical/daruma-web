@@ -57,6 +57,11 @@ The WASM target needs `chrono` with the `wasmbind` feature (declared in
 `Cargo.toml`). Without it, applying live WS `TaskUpdated` / `PlanUpdated`
 events panics with `time not implemented on this platform`.
 
+Production builds must use `trunk build --release --public-url /app/` (see
+`taskagent-cloud/scripts/build-leptos.sh`). Do **not** deploy `dist/` after
+`trunk serve` — that leaves `{{__TRUNK_*}}` live-reload scripts and `/web/`
+asset URLs, which breaks hosted routes like `/your-workspace/all`.
+
 Output lands in `dist/` — `index.html`, the hashed CSS, and the hashed
 `taskagent-web-*.{js,wasm}`.
 
