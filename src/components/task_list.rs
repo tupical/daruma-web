@@ -89,6 +89,7 @@ fn task_from_event(env: &EventEnvelope, input: &NewTask) -> Option<Task> {
         description: input.description.clone().unwrap_or_default(),
         status: input.status.unwrap_or_default(),
         priority: input.priority.unwrap_or_default(),
+        triage_state: input.triage_state,
         due_at: input.due_at,
         created_at: env.occurred_at,
         updated_at: env.occurred_at,
@@ -96,6 +97,9 @@ fn task_from_event(env: &EventEnvelope, input: &NewTask) -> Option<Task> {
         completed_at: None,
         created_by: Some(env.actor.clone()),
         completed_by: None,
+        updated_by: Some(env.actor.clone()),
+        updated_event_id: Some(env.id),
+        updated_event_seq: Some(env.seq),
         source_event_id: None,
     })
 }
