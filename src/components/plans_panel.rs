@@ -4,8 +4,8 @@ use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::HashMap;
 use taskagent_domain::{Plan, PlanPatch, PlanStatus};
-use taskagent_shared::time::Timestamp;
 use taskagent_events::{Event, EventEnvelope};
+use taskagent_shared::time::Timestamp;
 use wasm_bindgen_futures::spawn_local;
 
 fn status_class(status: &PlanStatus) -> &'static str {
