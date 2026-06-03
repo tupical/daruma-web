@@ -379,10 +379,17 @@ pub fn TaskList() -> impl IntoView {
     // recomputes cheaply and `<For key>` rebinds only the moved row.
     let groups = Memo::new(move |_| {
         let ts = tasks.get();
+        let mut buckets: [Vec<Task>; 6] = Default::default();
+        for t in ts.iter() {
+            if let Some(idx) = GROUP_ORDER.iter().position(|&s| s == t.status) {
+                buckets[idx].push(t.clone());
+            }
+        }
         GROUP_ORDER
             .iter()
-            .filter_map(|&s| {
-                let items: Vec<Task> = ts.iter().filter(|t| t.status == s).cloned().collect();
+            .copied()
+            .zip(buckets)
+            .filter_map(|(s, items)| {
                 if items.is_empty() {
                     None
                 } else {
