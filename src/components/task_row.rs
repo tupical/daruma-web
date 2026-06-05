@@ -23,15 +23,14 @@ pub fn TaskRow(task: Task) -> impl IntoView {
 
     let this_task_id = task.id;
 
-    // §3.5 Authorship — read directly from denormalized Task fields (scale-10k:
-    // no WS-stream actor accumulation; server writes these on TaskCreated /
-    // TaskCompleted and we receive them in the normal task-list refetch).
+    // Authorship is read directly from denormalized Task fields. The server
+    // writes these on TaskCreated/TaskCompleted and the UI receives them in the
+    // normal task-list refetch.
     let created_by = task.created_by.clone();
     let completed_by = task.completed_by.clone();
 
-    // PR1 §10 — surface AI-authored rows in the collapsed view so Inbox-as-Idea
-    // is scannable without having to expand every row. The full actor chip
-    // still appears in the expanded body via `render_actors`.
+    // Surface AI-authored rows in the collapsed view so idea triage remains
+    // scannable without expanding every row.
     let created_by_is_agent = created_by.as_ref().map(Actor::is_agent).unwrap_or(false);
     let ai_creator_name: Option<String> = created_by.as_ref().and_then(|a| match a {
         Actor::Agent { name, .. } => Some(name.clone()),
@@ -116,9 +115,7 @@ pub fn TaskRow(task: Task) -> impl IntoView {
                 >{"#"}{task_id_short}</span>
                 <span class="title">{title}</span>
 
-                // PR1 §10 — "From AI" badge for rows whose creator is an Agent.
-                // Shown inline so Inbox triage can spot AI-suggested ideas at a
-                // glance. Tooltip carries the agent's name.
+                // "From AI" badge for rows whose creator is an Agent.
                 { if created_by_is_agent {
                     let tooltip = ai_creator_name
                         .as_deref()

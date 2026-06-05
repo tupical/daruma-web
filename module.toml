@@ -11,7 +11,7 @@ read_only    = true
 
 [core]
 source       = "git"
-repo         = "https://github.com/mcpbox-ru/taskagent"
+repo         = "https://github.com/tupical/taskagent"
 version      = "0.1.0"
 tag          = "taskagent-v0.1.0"
 dev_override = "vendor/oss -> ../taskagent"
@@ -38,6 +38,5 @@ out_dir = "dist"
 [serve]
 # Standalone repo: the OSS server no longer serves this UI. The dist/ bundle is
 # deployed behind any static host and points at the API server's /v1/* + /v1/ws.
-# On Cloud it is built with --public-url /app/ and baked into the cloud-server image.
 mode    = "static"
-mount   = "/app/ (cloud) or any static host"
+mount   = "any static host"

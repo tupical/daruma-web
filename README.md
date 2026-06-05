@@ -57,10 +57,15 @@ The WASM target needs `chrono` with the `wasmbind` feature (declared in
 `Cargo.toml`). Without it, applying live WS `TaskUpdated` / `PlanUpdated`
 events panics with `time not implemented on this platform`.
 
-Production builds must use `trunk build --release --public-url /app/` (see
-`taskagent-cloud/scripts/build-leptos.sh`). Do **not** deploy `dist/` after
-`trunk serve` — that leaves `{{__TRUNK_*}}` live-reload scripts and `/web/`
-asset URLs, which breaks hosted routes like `/your-workspace/all`.
+Production builds should set `--public-url` to the URL path where the static
+bundle will be mounted. The default in `Trunk.toml` is `/web/`:
+
+```bash
+trunk build --release --public-url /web/
+```
+
+Do **not** deploy `dist/` after `trunk serve` — that leaves
+`{{__TRUNK_*}}` live-reload scripts and development asset URLs in the bundle.
 
 Output lands in `dist/` — `index.html`, the hashed CSS, and the hashed
 `taskagent-web-*.{js,wasm}`.
@@ -73,12 +78,21 @@ cd ../taskagent && just server
 # SQLite: ~/.agents/taskagent/data/ (see local-dev-data.md)
 
 # Terminal 2 — UI (this repo)
-NO_COLOR=false trunk serve   # proxies /v1/* to 127.0.0.1:8080 (Trunk.toml)
+NO_COLOR=false trunk serve --config Trunk.dev.toml
 ```
 
 **Database:** `~/.agents/taskagent/data/taskagent.sqlite` — set only via
 `TASKAGENT_DATA_DIR` if you need a non-default copy. See
 `../taskagent/docs/guides/local-dev-data.md` and `scripts/dev-stack.sh`.
+
+Open the UI at **`http://127.0.0.1:5174/`** when using `Trunk.dev.toml`
+(`trunk serve --config Trunk.dev.toml`). Production builds keep
+`public_url = /web/`; `./scripts/dev-stack.sh print-url` prints a dev URL
+with the bootstrap token.
+
+The API requires an explicit `status` query on `GET /v1/tasks` and
+`GET /v1/plans`; this client passes `status=all` so every status group
+renders in the viewer.
 
 ## Serve
 
@@ -98,7 +112,7 @@ The OSS web UI is an observability surface only. It can list and inspect tasks,
 projects, plans, runs, documents, relations, and realtime WS updates. It does
 not create tasks, complete tasks, edit documents, mutate plans, call AI parse
 endpoints, mint MCP tokens, or download MCP binaries. Those workflows belong to
-MCP/CLI/desktop/embed clients or to TaskAgent Cloud.
+MCP/CLI/desktop/embed clients.
 
 ## Module contract
 
@@ -111,13 +125,12 @@ This client consumes:
   `AgentStatus` channels.
 - **Auth** — bearer token in `Authorization:` header for REST,
   same token via `Sec-WebSocket-Protocol` for WS. Token is stored in
-  `localStorage` under `taskagent:token`.
+  `localStorage` under `taskagent_token`.
 
 Capabilities the UI actually exercises are declared in
-`module.toml [capabilities]`. The audit-grep CI step
-(§3.4 W4.1) verifies the crate does not import from internal runtime
-modules — domain types come from `taskagent-domain` directly, wire
-shapes from `taskagent-api-dto`.
+`module.toml [capabilities]`. CI should verify the crate does not import from
+internal runtime modules: domain types come from `taskagent-domain` directly,
+wire shapes from `taskagent-api-dto`.
 
 ## Tests
 

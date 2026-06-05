@@ -22,7 +22,7 @@ resolve_oss_root() {
     return 0
   fi
   parent="$(cd "${WEB_ROOT}/.." && pwd)"
-  for name in taskagent taskagent.vskideas.ru; do
+  for name in taskagent; do
     candidate="${parent}/${name}"
     if [ -f "${candidate}/Cargo.toml" ] && [ -d "${candidate}/crates" ]; then
       printf '%s' "${candidate}"

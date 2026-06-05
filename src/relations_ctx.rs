@@ -63,8 +63,8 @@ impl RelationsCtx {
                 continue;
             }
 
-            // §3.7.2: `WasBlocking` is purely historical — it is not counted in
-            // any of the active relation indicators.
+            // `WasBlocking` is historical and does not contribute to active
+            // relation indicators.
             if matches!(r.kind, RelationKind::WasBlocking) {
                 continue;
             }

@@ -25,8 +25,7 @@ fn group_label(s: Status) -> &'static str {
         Status::InProgress => "In Progress",
         Status::InReview => "In Review",
         Status::Todo => "Todo",
-        // PR1 §10 — Inbox doubles as the Idea-bucket (AI suggestions &
-        // unsorted intake land here for human triage).
+        // Inbox also acts as the idea bucket for unsorted intake.
         Status::Inbox => "Inbox · Idea",
         Status::Done => "Done",
         Status::Cancelled => "Cancelled",

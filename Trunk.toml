@@ -10,7 +10,7 @@ cargo_profile = "release-wasm"
 wasm_opt = "version_119"
 
 [serve]
-address = "127.0.0.1"
+addresses = ["127.0.0.1"]
 port = 5174
 
 # Dev proxy: in prod the frontend is same-origin with the API, but `trunk serve`

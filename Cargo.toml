@@ -1,7 +1,7 @@
 # Standalone workspace — taskagent-web (Leptos CSR → WASM).
 #
 # This repo was extracted from the OSS monorepo (`apps/web-leptos`). It builds
-# independently against a released TaskAgent OSS core. During local development,
+# independently against a released TaskAgent OSS core. During development,
 # `vendor/oss` may point at a sibling checkout (see scripts/link-oss.sh) as a
 # path override. The OSS server is a bare API + MCP backend and no longer bundles
 # this read-only viewer.

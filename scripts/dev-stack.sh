@@ -41,8 +41,9 @@ case "$cmd" in
       exit 1
     fi
     token="$(tr -d '\n' <"$token_file")"
-    printf 'http://127.0.0.1:5174/web/?token=%s\n' "$token"
+    printf 'http://127.0.0.1:5174/?token=%s\n' "$token"
     printf 'http://127.0.0.1:5174/workspaces\n'
+    printf '# start UI: NO_COLOR=false trunk serve --config Trunk.dev.toml\n'
   ;;
   *)
     echo "usage: $0 [env|server|print-url]" >&2

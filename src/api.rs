@@ -17,6 +17,13 @@ pub use taskagent_domain::{Relation, TaskRelations};
 // in Trunk.toml forwards /v1/* to the local API on :8080.
 const API_BASE: &str = "";
 
+/// Required by `/v1/tasks` since the status filter became mandatory.
+/// The viewer shows every status group, so request the full archive explicitly.
+const TASK_LIST_STATUS: &str = "all";
+
+/// Required by `/v1/plans` — same contract as tasks.
+const PLAN_LIST_STATUS: &str = "all";
+
 // ── Error type ────────────────────────────────────────────────────────────────
 
 #[derive(Debug)]
@@ -89,14 +96,14 @@ async fn post_json<B: Serialize, T: for<'de> Deserialize<'de>>(
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/// `GET /v1/tasks[?project_id=…]`
+/// `GET /v1/tasks?status=…[&project_id=…]`
 ///
-/// Pass `Some("inbox")` to list tasks with no project; `None` for all tasks.
+/// Pass `Some("inbox")` to list tasks with no project; `None` for all projects.
 pub async fn list_tasks(project_id: Option<&str>) -> Result<Vec<Task>, ApiError> {
-    let url = match project_id {
-        Some(pid) => format!("{API_BASE}/v1/tasks?project_id={pid}"),
-        None => format!("{API_BASE}/v1/tasks"),
-    };
+    let mut url = format!("{API_BASE}/v1/tasks?status={TASK_LIST_STATUS}");
+    if let Some(pid) = project_id {
+        url.push_str(&format!("&project_id={pid}"));
+    }
     get_json(&url).await
 }
 
@@ -105,9 +112,11 @@ pub async fn list_projects() -> Result<Vec<Project>, ApiError> {
     get_json(&format!("{API_BASE}/v1/projects")).await
 }
 
-/// `GET /v1/plans?project_id=…`
+/// `GET /v1/plans?project_id=…&status=…`
 pub async fn list_plans(project_id: &str) -> Result<Vec<Plan>, ApiError> {
-    let url = format!("{API_BASE}/v1/plans?project_id={project_id}");
+    let url = format!(
+        "{API_BASE}/v1/plans?project_id={project_id}&status={PLAN_LIST_STATUS}"
+    );
     get_json(&url).await
 }
 
@@ -148,7 +157,7 @@ pub async fn list_relations_for_tasks(task_ids: &[String]) -> Result<Vec<Relatio
     .await
 }
 
-// ── Documents (PR1) ──────────────────────────────────────────────────────────
+// ── Documents ────────────────────────────────────────────────────────────────
 
 /// `GET /v1/projects/{project_id}/documents` — list non-archived documents
 /// belonging to a project. Server returns the bare `Vec<Document>`.

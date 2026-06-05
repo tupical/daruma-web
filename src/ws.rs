@@ -4,7 +4,7 @@
 //! WebSocket v2 client for `/v1/ws`.
 //!
 //! Provides a reactive stream of [`EventEnvelope`] events via Leptos signals.
-//! No UI — this module is consumed by W3 components.
+//! No UI: this module is consumed by frontend components.
 
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::futures::WebSocket;
@@ -66,7 +66,7 @@ fn backoff_secs(attempt: u32) -> u32 {
 /// Spawn the WebSocket connect-loop and return reactive handles.
 ///
 /// The returned [`WsCtx`] is intended to be placed in Leptos context via
-/// `provide_context(ws_ctx)` so W3 components can read signals reactively.
+/// `provide_context(ws_ctx)` so components can read signals reactively.
 pub fn spawn_ws(token: String) -> WsCtx {
     let (events_r, events_w) = RwSignal::new(Vec::<EventEnvelope>::new()).split();
     let (status_r, status_w) = RwSignal::new(WsStatus::Connecting).split();

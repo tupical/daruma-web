@@ -1,8 +1,8 @@
 //! Bearer-token storage and bootstrap for the Leptos/WASM frontend.
 //!
 //! All state is kept in `localStorage` under the key `taskagent_token`.
-//! No reactive signals — callers that need reactivity wrap `current()` in
-//! a Leptos signal themselves (W3 territory).
+//! No reactive signals: callers that need reactivity wrap `current()` in a
+//! Leptos signal themselves.
 
 const STORAGE_KEY: &str = "taskagent_token";
 
@@ -13,25 +13,14 @@ pub fn current() -> Option<String> {
 }
 
 /// Persist `token` to `localStorage`.
-#[allow(dead_code)] // used in W3.2+: login flow
+#[allow(dead_code)] // reserved for a future login flow
 pub fn set(token: &str) {
     if let Some(Ok(Some(storage))) = web_sys::window().map(|w| w.local_storage()) {
         let _ = storage.set_item(STORAGE_KEY, token);
     }
 }
 
-/// Remove the stored token from `localStorage`.
-pub fn clear() {
-    if let Some(Ok(Some(storage))) = web_sys::window().map(|w| w.local_storage()) {
-        let _ = storage.remove_item(STORAGE_KEY);
-    }
-}
-
 /// Read bearer token from URL `?token=…` or fall back to `localStorage`.
-///
-/// Cloud serves this UI under `/app/` with HttpOnly cookie auth — stale
-/// `localStorage` entries from legacy `?token=` launches must not override
-/// the cookie on subsequent requests.
 pub fn bootstrap() -> Option<String> {
     let window = web_sys::window()?;
     let search = window.location().search().ok()?;
@@ -41,20 +30,7 @@ pub fn bootstrap() -> Option<String> {
         return Some(token);
     }
 
-    if is_cloud_hosted(&window) {
-        clear();
-        return None;
-    }
-
     current()
-}
-
-fn is_cloud_hosted(window: &web_sys::Window) -> bool {
-    window
-        .location()
-        .pathname()
-        .ok()
-        .is_some_and(|p| !p.starts_with("/web"))
 }
 
 /// Extract the value of the `token` query parameter from a raw search string

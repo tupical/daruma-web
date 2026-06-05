@@ -1,4 +1,4 @@
-//! Documents panel — PR1 §10 task #8.
+//! Documents panel.
 //!
 //! Shown on the right rail when a single project is selected. Lists the
 //! project's `Document`s (auto-created `Interview` + `Human Log` plus any
@@ -213,9 +213,8 @@ pub fn DocumentsPanel() -> impl IntoView {
 
 /// One document card: collapsible header + read-only body.
 ///
-/// Plain function (not `#[component]`) to keep parity with `plan_node_view`
-/// in `plans_panel.rs` — avoids `IntoView` type juggling when collecting
-/// into `Vec<AnyView>`.
+/// Plain function (not `#[component]`) to avoid `IntoView` type juggling when
+/// collecting into `Vec<AnyView>`.
 fn document_card_view(doc: Document) -> AnyView {
     let title = doc.title.clone();
     let kind = doc.kind;

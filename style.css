@@ -382,8 +382,7 @@ h1 {
 .actor-chip.actor-user  { border-color: rgba(83, 155, 245, 0.35); }
 .actor-chip.actor-agent { border-color: rgba(218, 170, 63, 0.4); }
 
-/* "From AI" badge (PR1 §10) — inline pill on rows whose creator is an Agent.
-   Same amber palette as `.actor-chip.actor-agent` for visual continuity. */
+/* "From AI" badge for rows whose creator is an Agent. */
 .ai-badge {
   flex: 0 0 auto;
   font-size: 10px;
@@ -539,7 +538,7 @@ h1 {
   100% { background-position: -200% 0; }
 }
 
-/* Plan chips (for W3.2 task-row expanded section) */
+/* Plan chips for the task-row expanded section. */
 .plan-chip {
   display: inline-flex;
   align-items: center;
@@ -594,7 +593,7 @@ h1 {
 
 .empty { color: var(--muted); padding: 1rem 0; }
 
-/* ── Plan treeview (W4) ─────────────────────────────────────────────────────── */
+/* ── Plan treeview ──────────────────────────────────────────────────────────── */
 
 .plan-tree {
   display: flex;
@@ -645,7 +644,7 @@ h1 {
   /* layout driven by children's own --depth indent */
 }
 
-/* ── Documents panel (PR1 §10 task #8) ─────────────────────────────────────── */
+/* ── Documents panel ───────────────────────────────────────────────────────── */
 
 .documents-panel {
   width: 100%;
