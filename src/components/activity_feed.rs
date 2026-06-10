@@ -173,18 +173,19 @@ fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
         Event::TaskCompleted { task_id, .. } => {
             (format!("completed task"), Some(task_id.to_string()))
         }
-        Event::TaskDeleted { task_id } => {
-            (format!("deleted task"), Some(task_id.to_string()))
-        }
-        Event::TaskClosed { task_id, .. } => {
-            (format!("closed task"), Some(task_id.to_string()))
-        }
+        Event::TaskDeleted { task_id } => (format!("deleted task"), Some(task_id.to_string())),
+        Event::TaskClosed { task_id, .. } => (format!("closed task"), Some(task_id.to_string())),
         Event::TaskReopened { task_id, .. } => {
             (format!("reopened task"), Some(task_id.to_string()))
         }
-        Event::TaskCommented { task_id, preview, .. } => {
+        Event::TaskCommented {
+            task_id, preview, ..
+        } => {
             let snippet = preview.chars().take(80).collect::<String>();
-            (format!("commented: \"{snippet}\""), Some(task_id.to_string()))
+            (
+                format!("commented: \"{snippet}\""),
+                Some(task_id.to_string()),
+            )
         }
         Event::TaskLinked { .. } => (format!("linked tasks"), None),
         Event::TaskUnlinked { .. } => (format!("unlinked tasks"), None),
@@ -198,11 +199,12 @@ fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
         // ── Plans ─────────────────────────────────────────────────────────────
         Event::PlanCreated { plan } => {
             let title = plan.title.chars().take(60).collect::<String>();
-            (format!("created plan \"{title}\""), Some(plan.id.to_string()))
+            (
+                format!("created plan \"{title}\""),
+                Some(plan.id.to_string()),
+            )
         }
-        Event::PlanUpdated { plan_id, .. } => {
-            (format!("updated plan"), Some(plan_id.to_string()))
-        }
+        Event::PlanUpdated { plan_id, .. } => (format!("updated plan"), Some(plan_id.to_string())),
         Event::PlanStatusChanged { plan_id, from, to } => (
             format!("changed plan status {from:?} → {to:?}"),
             Some(plan_id.to_string()),
@@ -210,7 +212,9 @@ fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
         Event::PlanGoalChanged { plan_id, .. } => {
             (format!("changed plan goal"), Some(plan_id.to_string()))
         }
-        Event::PlanTaskAdded { plan_id, task_id, .. } => (
+        Event::PlanTaskAdded {
+            plan_id, task_id, ..
+        } => (
             format!("added task to plan"),
             Some(format!("{plan_id}/{task_id}")),
         ),
@@ -224,33 +228,35 @@ fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
             (format!("archived plan"), Some(plan_id.to_string()))
         }
         // ── Runs ──────────────────────────────────────────────────────────────
-        Event::RunStarted { run } => {
-            (format!("started run"), Some(run.id.to_string()))
-        }
-        Event::RunStepStarted { run_id, task_id, .. } => (
+        Event::RunStarted { run } => (format!("started run"), Some(run.id.to_string())),
+        Event::RunStepStarted {
+            run_id, task_id, ..
+        } => (
             format!("run step started on task"),
             Some(format!("{run_id}/{task_id}")),
         ),
         Event::RunStepFinished { run_id, .. } => {
             (format!("run step finished"), Some(run_id.to_string()))
         }
-        Event::RunCompleted { run_id, .. } => {
-            (format!("run completed"), Some(run_id.to_string()))
-        }
+        Event::RunCompleted { run_id, .. } => (format!("run completed"), Some(run_id.to_string())),
         Event::RunFailed { run_id, reason, .. } => (
-            format!("run failed: {}", reason.chars().take(60).collect::<String>()),
+            format!(
+                "run failed: {}",
+                reason.chars().take(60).collect::<String>()
+            ),
             Some(run_id.to_string()),
         ),
         Event::RunAborted { run_id, reason, .. } => (
-            format!("run aborted: {}", reason.chars().take(60).collect::<String>()),
+            format!(
+                "run aborted: {}",
+                reason.chars().take(60).collect::<String>()
+            ),
             Some(run_id.to_string()),
         ),
         Event::RunUnresponsive { run_id, .. } => {
             (format!("run unresponsive"), Some(run_id.to_string()))
         }
-        Event::RunStale { run_id, .. } => {
-            (format!("run stale"), Some(run_id.to_string()))
-        }
+        Event::RunStale { run_id, .. } => (format!("run stale"), Some(run_id.to_string())),
         Event::RunNoteAppended { run_id, body, .. } => (
             format!(
                 "appended run note: \"{}\"",
@@ -274,14 +280,18 @@ fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
             format!("appended to document"),
             Some(document_id.to_string()),
         ),
-        Event::DocumentRenamed { document_id, title, .. } => (
-            format!("renamed document to \"{}\"", title.chars().take(60).collect::<String>()),
+        Event::DocumentRenamed {
+            document_id, title, ..
+        } => (
+            format!(
+                "renamed document to \"{}\"",
+                title.chars().take(60).collect::<String>()
+            ),
             Some(document_id.to_string()),
         ),
-        Event::DocumentArchived { document_id, .. } => (
-            format!("archived document"),
-            Some(document_id.to_string()),
-        ),
+        Event::DocumentArchived { document_id, .. } => {
+            (format!("archived document"), Some(document_id.to_string()))
+        }
         // ── Comments ──────────────────────────────────────────────────────────
         Event::CommentAdded { comment } => {
             let preview = comment.body.chars().take(80).collect::<String>();
@@ -304,7 +314,9 @@ fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
                 Some(project.id.to_string()),
             )
         }
-        Event::ProjectUpdated { project_id, title, .. } => {
+        Event::ProjectUpdated {
+            project_id, title, ..
+        } => {
             let suffix = title
                 .as_ref()
                 .map(|t| format!(" \"{t}\""))
@@ -442,8 +454,7 @@ pub fn ActivityFeed() -> impl IntoView {
 
     // ── Filter signals ────────────────────────────────────────────────────────
     // A set of enabled channels.  `None` means "all channels".
-    let channel_filter: RwSignal<Option<std::collections::HashSet<Channel>>> =
-        RwSignal::new(None);
+    let channel_filter: RwSignal<Option<std::collections::HashSet<Channel>>> = RwSignal::new(None);
     let actor_filter: RwSignal<ActorFilter> = RwSignal::new(ActorFilter::All);
     let time_window: RwSignal<TimeWindow> = RwSignal::new(TimeWindow::All);
     let filters_open: RwSignal<bool> = RwSignal::new(false);
@@ -485,10 +496,7 @@ pub fn ActivityFeed() -> impl IntoView {
         let tw = time_window.get();
 
         // Combine history (older) + live events (newer).
-        let combined: Vec<&EventEnvelope> = hist
-            .iter()
-            .chain(all.iter())
-            .collect();
+        let combined: Vec<&EventEnvelope> = hist.iter().chain(all.iter()).collect();
 
         // Cutoff timestamp for time window.
         let now_ms = {
@@ -553,14 +561,21 @@ pub fn ActivityFeed() -> impl IntoView {
         history_loading.set(true);
 
         // Find the oldest seq we have (history first, then live).
-        let oldest_seq = history_events.with_untracked(|h| {
-            h.first().map(|e| e.seq)
-        }).or_else(|| {
-            store.all_events.with_untracked(|v| v.first().map(|e| e.seq))
-        }).unwrap_or(0);
+        let oldest_seq = history_events
+            .with_untracked(|h| h.first().map(|e| e.seq))
+            .or_else(|| {
+                store
+                    .all_events
+                    .with_untracked(|v| v.first().map(|e| e.seq))
+            })
+            .unwrap_or(0);
 
         // Fetch the page before `oldest_seq`.
-        let since = if oldest_seq > 0 { oldest_seq.saturating_sub(HISTORY_PAGE as u64) } else { 0 };
+        let since = if oldest_seq > 0 {
+            oldest_seq.saturating_sub(HISTORY_PAGE as u64)
+        } else {
+            0
+        };
 
         spawn_local(async move {
             match api::events_since(since, HISTORY_PAGE).await {

@@ -1,4 +1,6 @@
-use crate::components::{ActivityFeed, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, TaskList, WorkspaceGraph};
+use crate::components::{
+    ActivityFeed, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, TaskList, WorkspaceGraph,
+};
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
 use leptos_router::components::{Route, Router, Routes};

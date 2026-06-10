@@ -115,9 +115,7 @@ pub async fn list_projects() -> Result<Vec<Project>, ApiError> {
 
 /// `GET /v1/plans?project_id=…&status=…`
 pub async fn list_plans(project_id: &str) -> Result<Vec<Plan>, ApiError> {
-    let url = format!(
-        "{API_BASE}/v1/plans?project_id={project_id}&status={PLAN_LIST_STATUS}"
-    );
+    let url = format!("{API_BASE}/v1/plans?project_id={project_id}&status={PLAN_LIST_STATUS}");
     get_json(&url).await
 }
 
@@ -295,8 +293,9 @@ fn urlencoding_simple(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
-            | b'-' | b'_' | b'.' | b'~' | b':' => out.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b':' => {
+                out.push(b as char)
+            }
             _ => out.push_str(&format!("%{:02X}", b)),
         }
     }

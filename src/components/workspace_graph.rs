@@ -294,7 +294,7 @@ pub fn WorkspaceGraph() -> impl IntoView {
 
         let project_source_ids: Vec<String> = projects
             .iter()
-            .map(|p| format!("prj_{}", p.id))
+            .map(|p| p.id.to_string())
             .collect();
 
         if project_source_ids.is_empty() {
@@ -347,7 +347,7 @@ pub fn WorkspaceGraph() -> impl IntoView {
             .projects
             .get_untracked()
             .iter()
-            .map(|p| format!("prj_{}", p.id))
+            .map(|p| p.id.to_string())
             .collect();
 
         let _t = Timeout::new(DEBOUNCE_MS, move || {

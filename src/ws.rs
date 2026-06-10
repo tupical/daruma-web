@@ -139,7 +139,9 @@ async fn connect_loop(
                 let wait = backoff_secs(attempt);
                 leptos::logging::warn!("[ws] open failed: {e:?}, retrying in {wait}s");
                 status_w.set(WsStatus::Reconnecting { in_secs: wait });
-                store.set_conn_state(ConnState::Offline { retry_in_secs: wait });
+                store.set_conn_state(ConnState::Offline {
+                    retry_in_secs: wait,
+                });
                 TimeoutFuture::new(wait * 1000).await;
                 attempt += 1;
                 continue;
@@ -159,7 +161,9 @@ async fn connect_loop(
                 let wait = backoff_secs(attempt);
                 leptos::logging::warn!("[ws] disconnected, retrying in {wait}s");
                 status_w.set(WsStatus::Reconnecting { in_secs: wait });
-                store.set_conn_state(ConnState::Offline { retry_in_secs: wait });
+                store.set_conn_state(ConnState::Offline {
+                    retry_in_secs: wait,
+                });
                 TimeoutFuture::new(wait * 1000).await;
                 attempt += 1;
             }

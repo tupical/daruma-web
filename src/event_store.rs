@@ -134,8 +134,11 @@ impl EventStoreCtx {
             return;
         }
         let max_seq = batch.iter().map(|e| e.seq).max().unwrap_or(0);
-        let graph_batch: Vec<EventEnvelope> =
-            batch.iter().filter(|e| is_graph_relevant(e)).cloned().collect();
+        let graph_batch: Vec<EventEnvelope> = batch
+            .iter()
+            .filter(|e| is_graph_relevant(e))
+            .cloned()
+            .collect();
         self.all_w.update(|v| v.extend(batch));
         if !graph_batch.is_empty() {
             self.graph_w.update(|v| v.extend(graph_batch));
