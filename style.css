@@ -1184,3 +1184,21 @@ h1 {
 }
 
 .node-details-panel__meta-label { color: var(--text); opacity: 0.6; }
+
+/* Empty graph state */
+.workspace-graph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 4rem 2rem;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.workspace-graph-empty__hint {
+  font-size: 12px;
+  opacity: 0.6;
+}

@@ -26,6 +26,7 @@ use crate::api::{
     self, GraphNeighborhood, GraphNode,
 };
 use crate::event_store::EventStoreCtx;
+use crate::projects_ctx::ProjectsCtx;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -199,10 +200,55 @@ impl FilterState {
 
 // ── WorkspaceGraph component ──────────────────────────────────────────────────
 
+/// Fetch the graph for a list of project ids (formatted as `prj_<uuid>`),
+/// calling `workspacegraph_related` for each root and merging results.
+/// Deduplicates nodes by `id`; edges are included if both endpoints are present.
+async fn fetch_full_neighborhood(project_source_ids: Vec<String>) -> Option<GraphNeighborhood> {
+    if project_source_ids.is_empty() {
+        return None;
+    }
+    let mut all_nodes: Vec<GraphNode> = Vec::new();
+    let mut seen_nodes: HashSet<String> = HashSet::new();
+    let mut all_edges = Vec::new();
+    let mut seen_edges: HashSet<(String, String, String)> = HashSet::new();
+
+    for source_id in &project_source_ids {
+        // node_id format the server expects: "project:prj_<uuid>"
+        let node_id = format!("project:{source_id}");
+        match api::workspacegraph_related(&node_id, 2, INITIAL_LIMIT).await {
+            Ok(nb) => {
+                for node in nb.nodes {
+                    if seen_nodes.insert(node.id.clone()) {
+                        all_nodes.push(node);
+                    }
+                }
+                for edge in nb.edges {
+                    let key = (edge.from_id.clone(), edge.to_id.clone(), edge.kind.clone());
+                    if seen_edges.insert(key) {
+                        all_edges.push(edge);
+                    }
+                }
+            }
+            Err(e) => {
+                leptos::logging::warn!(
+                    "[graph] related({node_id}) failed: {e}"
+                );
+            }
+        }
+    }
+
+    Some(GraphNeighborhood {
+        nodes: all_nodes,
+        edges: all_edges,
+    })
+}
+
 #[component]
 pub fn WorkspaceGraph() -> impl IntoView {
     // Event store for live updates.
     let store = use_context::<EventStoreCtx>().expect("EventStoreCtx");
+    // Projects context — provides real project ids for bootstrap.
+    let projects_ctx = use_context::<ProjectsCtx>().expect("ProjectsCtx");
 
     // Graph data — neighborhood fetched from server.
     let neighborhood: RwSignal<Option<GraphNeighborhood>> = RwSignal::new(None);
@@ -231,43 +277,59 @@ pub fn WorkspaceGraph() -> impl IntoView {
     // Cursor applied from graph_events.
     let event_cursor: RwSignal<usize> = RwSignal::new(0);
 
-    // ── Initial fetch ──────────────────────────────────────────────────────
+    // Bootstrap-started flag: prevents re-running the initial fetch when the
+    // projects signal updates for other reasons after we've already loaded.
+    let bootstrap_done = RwSignal::new(false);
 
-    {
-        let neighborhood = neighborhood;
-        let loading = loading;
-        let load_error = load_error;
-        let positions = positions;
-        let layout_running = layout_running;
+    // ── Initial fetch ──────────────────────────────────────────────────────
+    // Reactive on `projects` — fires once projects are non-empty, then stops.
+
+    Effect::new(move |_| {
+        // Already bootstrapped — ignore subsequent project-signal updates.
+        if bootstrap_done.get_untracked() {
+            return;
+        }
+
+        let projects = projects_ctx.projects.get(); // reactive dependency
+
+        let project_source_ids: Vec<String> = projects
+            .iter()
+            .map(|p| format!("prj_{}", p.id))
+            .collect();
+
+        if project_source_ids.is_empty() {
+            // Projects not loaded yet — wait for next reactive tick.
+            return;
+        }
+
+        // Mark done before spawning so a second effect-fire won't double-fetch.
+        bootstrap_done.set(true);
+
         spawn_local(async move {
             loading.set(true);
-            match api::workspacegraph_related("project:all", 1, INITIAL_LIMIT).await {
-                Ok(nb) => {
+            match fetch_full_neighborhood(project_source_ids).await {
+                Some(nb) if !nb.nodes.is_empty() => {
                     init_positions(&nb, positions);
                     neighborhood.set(Some(nb));
                     loading.set(false);
                     run_layout(positions, layout_running, LAYOUT_ITERATIONS);
                 }
-                Err(e) => {
-                    // Fallback: fetch status to confirm server is up, then
-                    // try loading without a root node (empty graph is valid).
-                    match api::workspacegraph_status().await {
-                        Ok(_) => {
-                            neighborhood.set(Some(GraphNeighborhood {
-                                nodes: vec![],
-                                edges: vec![],
-                            }));
-                            loading.set(false);
-                        }
-                        Err(_) => {
-                            load_error.set(Some(format!("WorkspaceGraph fetch failed: {e}")));
-                            loading.set(false);
-                        }
-                    }
+                Some(_empty) => {
+                    neighborhood.set(Some(GraphNeighborhood {
+                        nodes: vec![],
+                        edges: vec![],
+                    }));
+                    loading.set(false);
+                }
+                None => {
+                    load_error.set(Some(
+                        "No projects found — cannot load workspace graph.".into(),
+                    ));
+                    loading.set(false);
                 }
             }
         });
-    }
+    });
 
     // ── Debounced live update from graph_events ────────────────────────────
 
@@ -277,26 +339,26 @@ pub fn WorkspaceGraph() -> impl IntoView {
         if start >= len {
             return;
         }
-        // Debounce: schedule reconcile after DEBOUNCE_MS.
-        let neighborhood = neighborhood;
-        let positions = positions;
-        let layout_running = layout_running;
-        let event_cursor = event_cursor;
-        let store = store;
+
+        // Snapshot project ids now (before the async boundary) so the Timeout
+        // closure captures a plain Vec<String> — not the ProjectsCtx signal,
+        // which would make the closure FnOnce.
+        let project_source_ids: Vec<String> = projects_ctx
+            .projects
+            .get_untracked()
+            .iter()
+            .map(|p| format!("prj_{}", p.id))
+            .collect();
+
         let _t = Timeout::new(DEBOUNCE_MS, move || {
             let current_len = store.graph_events.with_untracked(|v| v.len());
             event_cursor.set(current_len);
 
-            // Re-fetch neighborhood to get updated graph (lightweight: server
-            // is the source of truth; we don't re-derive edges from events).
             spawn_local(async move {
-                if let Ok(nb) = api::workspacegraph_related("project:all", 1, INITIAL_LIMIT).await {
-                    // Preserve positions of existing nodes; add new ones.
-                    let existing_positions = positions.get_untracked();
+                if let Some(nb) = fetch_full_neighborhood(project_source_ids).await {
                     positions.update(|m| {
                         for node in &nb.nodes {
                             if !m.contains_key(&node.id) {
-                                // Place new node near center with small random offset.
                                 let offset = (m.len() as f64 * 37.0).sin() * 60.0;
                                 m.insert(
                                     node.id.clone(),
@@ -310,17 +372,14 @@ pub fn WorkspaceGraph() -> impl IntoView {
                                 );
                             }
                         }
-                        // Drop positions for nodes no longer in graph.
                         let ids: HashSet<&String> = nb.nodes.iter().map(|n| &n.id).collect();
                         m.retain(|k, _| ids.contains(k));
-                        let _ = existing_positions; // suppress move warning
                     });
                     neighborhood.set(Some(nb));
                     run_layout(positions, layout_running, 20);
                 }
             });
         });
-        // Leak the timeout handle — it fires once and cleans up.
         _t.forget();
     });
 
@@ -354,38 +413,51 @@ pub fn WorkspaceGraph() -> impl IntoView {
             </div>
 
             <div class="workspace-graph-body">
-                <Show
-                    when=move || !loading.get() && load_error.get().is_none()
-                    fallback=move || {
-                        if let Some(err) = load_error.get() {
-                            view! {
-                                <div class="workspace-graph-error">{err}</div>
-                            }.into_any()
-                        } else {
-                            view! {
-                                <div class="workspace-graph-loading">"Loading graph…"</div>
-                            }.into_any()
-                        }
+                {move || {
+                    if loading.get() {
+                        return view! {
+                            <div class="workspace-graph-loading">"Loading graph…"</div>
+                        }.into_any();
                     }
-                >
-                    <GraphSvg
-                        neighborhood=neighborhood
-                        positions=positions
-                        filter_state=filter_state
-                        selected_node=selected_node
-                        impact_ids=impact_ids
-                        impact_mode=impact_mode
-                        zoom=zoom
-                    />
-                </Show>
-
-                <Show when=move || selected_node.get().is_some()>
-                    <NodeDetailsPanel
-                        node=selected_node
-                        impact_ids=impact_ids
-                        impact_mode=impact_mode
-                    />
-                </Show>
+                    if let Some(err) = load_error.get() {
+                        return view! {
+                            <div class="workspace-graph-error">{err}</div>
+                        }.into_any();
+                    }
+                    let is_empty = neighborhood.with(|nb| {
+                        nb.as_ref().map(|n| n.nodes.is_empty()).unwrap_or(true)
+                    });
+                    if is_empty {
+                        return view! {
+                            <div class="workspace-graph-empty">
+                                <span>"No graph data yet."</span>
+                                <span class="workspace-graph-empty__hint">
+                                    "Create tasks, plans or documents to see them here."
+                                </span>
+                            </div>
+                        }.into_any();
+                    }
+                    view! {
+                        <>
+                            <GraphSvg
+                                neighborhood=neighborhood
+                                positions=positions
+                                filter_state=filter_state
+                                selected_node=selected_node
+                                impact_ids=impact_ids
+                                impact_mode=impact_mode
+                                zoom=zoom
+                            />
+                            <Show when=move || selected_node.get().is_some()>
+                                <NodeDetailsPanel
+                                    node=selected_node
+                                    impact_ids=impact_ids
+                                    impact_mode=impact_mode
+                                />
+                            </Show>
+                        </>
+                    }.into_any()
+                }}
             </div>
         </div>
     }
