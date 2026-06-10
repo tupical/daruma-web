@@ -167,6 +167,142 @@ pub async fn list_project_documents(project_id: &str) -> Result<Vec<Document>, A
     get_json(&url).await
 }
 
+// ── WorkspaceGraph types ──────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GraphNode {
+    pub id: String,
+    pub kind: String,
+    pub source_id: String,
+    pub project_id: Option<String>,
+    pub title: String,
+    pub text: String,
+    pub updated_at: String,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GraphEdge {
+    pub from_id: String,
+    pub to_id: String,
+    pub kind: String,
+    pub source_event_seq: Option<i64>,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GraphNeighborhood {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GraphContextItem {
+    pub node: GraphNode,
+    pub edge: GraphEdge,
+    pub direction: GraphDirection,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, Eq)]
+pub enum GraphDirection {
+    Incoming,
+    Outgoing,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GraphSearchHit {
+    pub node: GraphNode,
+    pub score: f64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GraphStatus {
+    pub schema_version: u32,
+    pub node_count: u64,
+    pub edge_count: u64,
+    pub last_event_seq: Option<u64>,
+    pub last_error: Option<String>,
+}
+
+// ── WorkspaceGraph fetchers ───────────────────────────────────────────────────
+
+/// `GET /v1/workspacegraph/status`
+pub async fn workspacegraph_status() -> Result<GraphStatus, ApiError> {
+    get_json(&format!("{API_BASE}/v1/workspacegraph/status")).await
+}
+
+/// `GET /v1/workspacegraph/context?node_id=…&limit=…`
+pub async fn workspacegraph_context(
+    node_id: &str,
+    limit: u32,
+) -> Result<Vec<GraphContextItem>, ApiError> {
+    let url = format!(
+        "{API_BASE}/v1/workspacegraph/context?node_id={}&limit={}",
+        urlencoding_simple(node_id),
+        limit
+    );
+    get_json(&url).await
+}
+
+/// `GET /v1/workspacegraph/related?node_id=…&depth=…&limit=…`
+pub async fn workspacegraph_related(
+    node_id: &str,
+    depth: u32,
+    limit: u32,
+) -> Result<GraphNeighborhood, ApiError> {
+    let url = format!(
+        "{API_BASE}/v1/workspacegraph/related?node_id={}&depth={}&limit={}",
+        urlencoding_simple(node_id),
+        depth,
+        limit
+    );
+    get_json(&url).await
+}
+
+/// `GET /v1/workspacegraph/search?query=…&limit=…[&project_id=…]`
+pub async fn workspacegraph_search(
+    query: &str,
+    limit: u32,
+    project_id: Option<&str>,
+) -> Result<Vec<GraphSearchHit>, ApiError> {
+    let mut url = format!(
+        "{API_BASE}/v1/workspacegraph/search?query={}&limit={}",
+        urlencoding_simple(query),
+        limit
+    );
+    if let Some(pid) = project_id {
+        url.push_str(&format!("&project_id={}", urlencoding_simple(pid)));
+    }
+    get_json(&url).await
+}
+
+/// `GET /v1/workspacegraph/impact?node_id=…&limit=…`
+pub async fn workspacegraph_impact(
+    node_id: &str,
+    limit: u32,
+) -> Result<GraphNeighborhood, ApiError> {
+    let url = format!(
+        "{API_BASE}/v1/workspacegraph/impact?node_id={}&limit={}",
+        urlencoding_simple(node_id),
+        limit
+    );
+    get_json(&url).await
+}
+
+/// Percent-encode a query-parameter value without pulling in a URL library.
+/// Encodes space, `+`, `&`, `=`, `#`, and non-ASCII bytes.
+fn urlencoding_simple(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+            | b'-' | b'_' | b'.' | b'~' | b':' => out.push(b as char),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
 // ── Event history ─────────────────────────────────────────────────────────────
 
 /// `GET /v1/events?since={seq}&limit={limit}` — load up to `limit` events
