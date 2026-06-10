@@ -1,4 +1,4 @@
-use crate::components::{DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, TaskList};
+use crate::components::{ActivityFeed, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, TaskList, WorkspaceGraph};
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
 use leptos_router::components::{Route, Router, Routes};
@@ -10,6 +10,8 @@ pub fn App() -> impl IntoView {
     view! {
         <Router>
             <Routes fallback=|| view! { <WorkspaceApp /> }>
+                <Route path=path!("/graph") view=GraphApp />
+                <Route path=path!("/activity") view=ActivityApp />
                 <Route path=path!("/:workspace/:project") view=WorkspaceApp />
                 <Route path=path!("/:workspace") view=WorkspaceApp />
                 <Route path=path!("/") view=WorkspaceApp />
@@ -18,6 +20,40 @@ pub fn App() -> impl IntoView {
                 <Route path=path!("/app/:project") view=WorkspaceApp />
             </Routes>
         </Router>
+    }
+}
+
+#[component]
+fn GraphApp() -> impl IntoView {
+    view! {
+        <div class="app app--graph">
+            <div class="header">
+                <div class="header-row">
+                    <div class="viewer-title">"TaskAgent OSS Viewer"</div>
+                    <HostShellNav />
+                </div>
+            </div>
+            <main class="main main--graph">
+                <WorkspaceGraph />
+            </main>
+        </div>
+    }
+}
+
+#[component]
+fn ActivityApp() -> impl IntoView {
+    view! {
+        <div class="app app--activity">
+            <div class="header">
+                <div class="header-row">
+                    <div class="viewer-title">"TaskAgent OSS Viewer"</div>
+                    <HostShellNav />
+                </div>
+            </div>
+            <main class="main main--activity">
+                <ActivityFeed />
+            </main>
+        </div>
     }
 }
 
