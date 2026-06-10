@@ -7,6 +7,7 @@
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 use taskagent_domain::{Document, Plan, Project, Task};
+use taskagent_events::EventEnvelope;
 
 use crate::auth;
 
@@ -163,5 +164,21 @@ pub async fn list_relations_for_tasks(task_ids: &[String]) -> Result<Vec<Relatio
 /// belonging to a project. Server returns the bare `Vec<Document>`.
 pub async fn list_project_documents(project_id: &str) -> Result<Vec<Document>, ApiError> {
     let url = format!("{API_BASE}/v1/projects/{project_id}/documents");
+    get_json(&url).await
+}
+
+// ── Event history ─────────────────────────────────────────────────────────────
+
+/// `GET /v1/events?since={seq}&limit={limit}` — load up to `limit` events
+/// with `seq > since_seq`, ordered ascending.
+///
+/// Used for catch-up on connect/reconnect: pass the highest `seq` the client
+/// has already seen as `since_seq` (or `0` on the very first load).  The
+/// server returns at most `limit` envelopes; call again with the last returned
+/// `seq` until the response is shorter than `limit` (or empty).
+///
+/// `limit` is capped by the server at 500; callers should pass 200–500.
+pub async fn events_since(since_seq: u64, limit: usize) -> Result<Vec<EventEnvelope>, ApiError> {
+    let url = format!("{API_BASE}/v1/events?since={since_seq}&limit={limit}");
     get_json(&url).await
 }
