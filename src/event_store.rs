@@ -58,14 +58,15 @@ pub enum ConnState {
 
 /// Channels whose events are relevant to the workspace graph view.
 ///
-/// Tasks, Plans, Runs, and Documents form nodes/edges in the graph.
-/// Comments, AgentStatus, Presence, Webhooks, AiOps, WorkUnits, Artifacts are
+/// Tasks, Plans, Runs, Documents, and Artifacts form nodes/edges in the graph.
+/// Comments, AgentStatus, Presence, Webhooks, AiOps, WorkUnits are
 /// activity-feed events and are filtered out of the graph slice.
 const GRAPH_CHANNELS: &[Channel] = &[
     Channel::Tasks,
     Channel::Plans,
     Channel::Runs,
     Channel::Documents,
+    Channel::Artifacts,
 ];
 
 fn is_graph_relevant(env: &EventEnvelope) -> bool {
