@@ -500,9 +500,26 @@ fn GraphSvg(
         e.prevent_default();
         let delta = e.delta_y();
         let factor = if delta < 0.0 { 1.12 } else { 1.0 / 1.12 };
+
+        // Zoom relative to the cursor position so the point under the pointer
+        // stays fixed.  Standard zoom-to-cursor formula:
+        //   world_x = (cursor_x - tx) / sc
+        //   new_sc  = clamp(sc * factor)
+        //   new_tx  = cursor_x - world_x * new_sc
+        //             = cursor_x - (cursor_x - tx) * (new_sc / sc)
+        //
+        // WheelEvent inherits MouseEvent; offset_x/y give coordinates relative
+        // to the target element's padding edge — exactly what we need for SVG
+        // viewport math, and requires no extra web-sys features.
+        let cx = e.offset_x() as f64;
+        let cy = e.offset_y() as f64;
+
         zoom.update(|(sc, tx, ty)| {
-            *sc = (*sc * factor).clamp(0.1, 8.0);
-            let _ = (tx, ty);
+            let new_sc = (*sc * factor).clamp(0.1, 8.0);
+            let ratio = new_sc / *sc;
+            *tx = cx - (cx - *tx) * ratio;
+            *ty = cy - (cy - *ty) * ratio;
+            *sc = new_sc;
         });
     };
 
