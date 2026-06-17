@@ -925,6 +925,29 @@ h1 {
   flex-shrink: 0;
 }
 
+/* Day separator */
+.feed-day-separator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 4px;
+  pointer-events: none;
+}
+.feed-day-separator::before,
+.feed-day-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.feed-day-separator__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
 /* Empty state */
 .feed-empty {
   padding: 2rem 0;

@@ -105,7 +105,8 @@ struct FeedEntry {
     entity_id: Option<String>,
 }
 
-/// A single row in the rendered feed — either one entry or a burst group.
+/// A single row in the rendered feed — either one entry, a burst group, or a
+/// day-separator header.
 #[derive(Clone, Debug, PartialEq)]
 enum FeedRow {
     Single(FeedEntry),
@@ -118,6 +119,13 @@ enum FeedRow {
         occurred_at: Timestamp,
         channel: Channel,
     },
+    /// Visual separator between calendar days, shown above the first event of
+    /// each day.  `seq` mirrors the first event in that day so `<For key>` is
+    /// stable and unique.
+    DaySeparator {
+        label: String, // "YYYY-MM-DD"
+        seq: u64,
+    },
 }
 
 impl FeedRow {
@@ -125,6 +133,9 @@ impl FeedRow {
         match self {
             FeedRow::Single(e) => e.seq,
             FeedRow::Burst { first_seq, .. } => *first_seq,
+            // Use seq directly; day separators share the seq of their first
+            // event but are keyed with a negative offset to avoid collision.
+            FeedRow::DaySeparator { seq, .. } => seq.wrapping_add(u64::MAX / 2),
         }
     }
 }
@@ -361,13 +372,20 @@ fn envelope_to_entry(env: &EventEnvelope) -> FeedEntry {
     }
 }
 
-// ── Burst grouping ────────────────────────────────────────────────────────────
+// ── Burst grouping + day separators ──────────────────────────────────────────
 
+/// Build the final list of renderable rows from a flat, time-ordered list of
+/// entries.  Two passes:
+///
+/// 1. Burst-collapse: consecutive events from the same actor (≥ BURST_THRESHOLD)
+///    are folded into a single `FeedRow::Burst`.
+/// 2. Day-separator injection: a `FeedRow::DaySeparator` is inserted before
+///    the first event (or burst) belonging to a new calendar day (UTC).
 fn build_rows(entries: Vec<FeedEntry>) -> Vec<FeedRow> {
-    let mut rows: Vec<FeedRow> = Vec::with_capacity(entries.len());
+    // Pass 1 — burst-collapse.
+    let mut collapsed: Vec<FeedRow> = Vec::with_capacity(entries.len());
     let mut i = 0usize;
     while i < entries.len() {
-        // Count consecutive entries from the same actor.
         let actor = &entries[i].actor_label;
         let mut j = i + 1;
         while j < entries.len() && &entries[j].actor_label == actor {
@@ -375,7 +393,7 @@ fn build_rows(entries: Vec<FeedEntry>) -> Vec<FeedRow> {
         }
         let run = j - i;
         if run >= BURST_THRESHOLD {
-            rows.push(FeedRow::Burst {
+            collapsed.push(FeedRow::Burst {
                 actor_label: actor.clone(),
                 is_agent: entries[i].is_agent,
                 count: run,
@@ -385,9 +403,37 @@ fn build_rows(entries: Vec<FeedEntry>) -> Vec<FeedRow> {
             });
             i = j;
         } else {
-            rows.push(FeedRow::Single(entries[i].clone()));
+            collapsed.push(FeedRow::Single(entries[i].clone()));
             i += 1;
         }
+    }
+
+    // Pass 2 — inject day separators.
+    let mut rows: Vec<FeedRow> = Vec::with_capacity(collapsed.len() + 8);
+    let mut current_day: Option<String> = None;
+    for row in collapsed {
+        // Extract the timestamp of the first event in this row.
+        let ts = match &row {
+            FeedRow::Single(e) => Some(e.occurred_at),
+            FeedRow::Burst { occurred_at, .. } => Some(*occurred_at),
+            FeedRow::DaySeparator { .. } => None,
+        };
+        if let Some(ts) = ts {
+            let day = format_day(ts);
+            if current_day.as_deref() != Some(&day) {
+                let seq = match &row {
+                    FeedRow::Single(e) => e.seq,
+                    FeedRow::Burst { first_seq, .. } => *first_seq,
+                    _ => 0,
+                };
+                rows.push(FeedRow::DaySeparator {
+                    label: day.clone(),
+                    seq,
+                });
+                current_day = Some(day);
+            }
+        }
+        rows.push(row);
     }
     rows
 }
@@ -399,6 +445,13 @@ fn format_time(ts: Timestamp) -> String {
     use chrono::Timelike;
     let dt: chrono::DateTime<chrono::Utc> = ts.into();
     format!("{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second())
+}
+
+/// Format a date as "YYYY-MM-DD" for day separator headers.
+fn format_day(ts: Timestamp) -> String {
+    use chrono::Datelike;
+    let dt: chrono::DateTime<chrono::Utc> = ts.into();
+    format!("{:04}-{:02}-{:02}", dt.year(), dt.month(), dt.day())
 }
 
 fn ts_millis(ts: Timestamp) -> i64 {
@@ -759,24 +812,7 @@ pub fn ActivityFeed() -> impl IntoView {
                 class="feed-list"
                 on:scroll=on_scroll
             >
-                // Load-older button at the top.
-                <Show
-                    when=move || !history_loaded.get()
-                    fallback=|| ()
-                >
-                    <div class="feed-load-older">
-                        <button
-                            class="feed-load-older-btn"
-                            type="button"
-                            disabled=move || history_loading.get()
-                            on:click=load_older
-                        >
-                            { move || if history_loading.get() { "Loading…" } else { "Load older" } }
-                        </button>
-                    </div>
-                </Show>
-
-                // Entry rows.
+                // Entry rows (day separators are injected by build_rows).
                 <For
                     each=move || visible_rows.get()
                     key=|row| row.seq()
@@ -795,6 +831,11 @@ pub fn ActivityFeed() -> impl IntoView {
                                 channel=channel
                             />
                         }.into_any(),
+                        FeedRow::DaySeparator { label, .. } => view! {
+                            <div class="feed-day-separator">
+                                <span class="feed-day-separator__label">{ label }</span>
+                            </div>
+                        }.into_any(),
                     }}
                 </For>
 
@@ -804,6 +845,24 @@ pub fn ActivityFeed() -> impl IntoView {
                     fallback=|| ()
                 >
                     <div class="feed-empty">"No events yet."</div>
+                </Show>
+
+                // Load-older button at the bottom — loads events *older* than
+                // what is currently visible, so it belongs at the list tail.
+                <Show
+                    when=move || !history_loaded.get()
+                    fallback=|| ()
+                >
+                    <div class="feed-load-older">
+                        <button
+                            class="feed-load-older-btn"
+                            type="button"
+                            disabled=move || history_loading.get()
+                            on:click=load_older
+                        >
+                            { move || if history_loading.get() { "Loading…" } else { "Load older" } }
+                        </button>
+                    </div>
                 </Show>
             </div>
 
