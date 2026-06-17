@@ -1,0 +1,17 @@
+name: OSS boundary check
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  oss-boundary:
+    name: No Cloud/SaaS leaks in OSS web viewer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check OSS boundary
+        run: bash scripts/check-oss-boundary.sh src
