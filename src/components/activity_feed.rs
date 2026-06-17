@@ -84,6 +84,7 @@ fn channel_label(ch: Channel) -> &'static str {
         Channel::Artifacts => "Artifacts",
         Channel::Presence => "Presence",
         Channel::Webhooks => "Webhooks",
+        Channel::Rules => "Rules",
     }
 }
 
@@ -494,6 +495,7 @@ fn channel_class(ch: Channel) -> &'static str {
         Channel::Artifacts => "ch-badge ch-artifacts",
         Channel::Presence => "ch-badge ch-presence",
         Channel::Webhooks => "ch-badge ch-webhooks",
+        Channel::Rules => "ch-badge ch-rules",
     }
 }
 
