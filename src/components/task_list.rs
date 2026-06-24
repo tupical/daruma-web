@@ -206,6 +206,7 @@ fn apply_event_to_vec(
         Event::TaskCompleted {
             task_id,
             completed_at,
+            ..
         } => {
             let at = *completed_at;
             if let Some(t) = list.iter_mut().find(|t| t.id == *task_id) {
