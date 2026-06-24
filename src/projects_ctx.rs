@@ -1,7 +1,10 @@
 use leptos::prelude::*;
 use std::collections::HashMap;
 use taskagent_domain::Project;
+use taskagent_events::{Event, EventEnvelope};
 use taskagent_shared::ProjectId;
+
+use crate::ws::WsCtx;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProjectFilter {
@@ -76,6 +79,38 @@ pub fn filter_to_segment(filter: &ProjectFilter, projects: &[Project]) -> String
     }
 }
 
+/// Apply one WS event to the project list. Idempotent by project id.
+fn apply_project_event(env: &EventEnvelope, list: &mut Vec<Project>) {
+    match &env.payload {
+        Event::ProjectCreated { project } => {
+            if let Some(existing) = list.iter_mut().find(|p| p.id == project.id) {
+                *existing = project.clone();
+            } else {
+                list.push(project.clone());
+            }
+        }
+        Event::ProjectUpdated {
+            project_id,
+            title,
+            description,
+        } => {
+            if let Some(project) = list.iter_mut().find(|p| p.id == *project_id) {
+                if let Some(title) = title {
+                    project.title = title.clone();
+                }
+                if let Some(description) = description {
+                    project.description = description.clone();
+                }
+                project.updated_at = env.occurred_at;
+            }
+        }
+        Event::ProjectDeleted { project_id } => {
+            list.retain(|p| p.id != *project_id);
+        }
+        _ => {}
+    }
+}
+
 pub fn canonical_path(
     workspace_slug: &str,
     filter: &ProjectFilter,
@@ -93,6 +128,8 @@ pub fn canonical_path(
 
 pub fn init_projects_ctx() -> ProjectsCtx {
     let (projects, set_projects) = signal(Vec::<Project>::new());
+    let ws_ctx = use_context::<WsCtx>().expect("WsCtx");
+    let ws_events = ws_ctx.events;
     let names = Memo::new(move |_| {
         projects
             .get()
@@ -114,10 +151,88 @@ pub fn init_projects_ctx() -> ProjectsCtx {
         }
     });
 
+    let applied_cursor: RwSignal<usize> = RwSignal::new(ws_events.with_untracked(|v| v.len()));
+    Effect::new(move |_| {
+        let len = ws_events.with(|v| v.len());
+        let start = applied_cursor.get_untracked();
+        if start >= len {
+            return;
+        }
+        ws_events.with_untracked(|evs| {
+            set_projects.update(|list| {
+                for env in &evs[start..len] {
+                    apply_project_event(env, list);
+                }
+            });
+        });
+        applied_cursor.set(len);
+    });
+
     ProjectsCtx {
         projects,
         names,
         workspace_slug,
         current_filter,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use taskagent_domain::Actor;
+
+    #[test]
+    fn apply_project_event_creates_idempotently_updates_and_deletes() {
+        let mut list = Vec::new();
+        let project = Project::new("one", Some("before".into()));
+        let project_id = project.id;
+
+        apply_project_event(
+            &EventEnvelope::new(
+                Actor::user(),
+                Event::ProjectCreated {
+                    project: project.clone(),
+                },
+            ),
+            &mut list,
+        );
+        assert_eq!(list, vec![project.clone()]);
+
+        apply_project_event(
+            &EventEnvelope::new(
+                Actor::user(),
+                Event::ProjectCreated {
+                    project: project.clone(),
+                },
+            ),
+            &mut list,
+        );
+        assert_eq!(list.len(), 1);
+
+        apply_project_event(
+            &EventEnvelope::new(
+                Actor::user(),
+                Event::ProjectUpdated {
+                    project_id,
+                    title: Some("renamed".into()),
+                    description: Some(None),
+                },
+            ),
+            &mut list,
+        );
+        assert_eq!(list[0].title, "renamed");
+        assert_eq!(list[0].description, None);
+
+        apply_project_event(
+            &EventEnvelope::new(Actor::user(), Event::ProjectDeleted { project_id }),
+            &mut list,
+        );
+        assert!(list.is_empty());
+
+        apply_project_event(
+            &EventEnvelope::new(Actor::user(), Event::ProjectDeleted { project_id }),
+            &mut list,
+        );
+        assert!(list.is_empty());
     }
 }
