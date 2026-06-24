@@ -8,6 +8,13 @@ use taskagent_events::{Event, EventEnvelope};
 use taskagent_shared::time::Timestamp;
 use wasm_bindgen_futures::spawn_local;
 
+const PLAN_GROUP_ORDER: &[PlanStatus] = &[
+    PlanStatus::Active,
+    PlanStatus::Draft,
+    PlanStatus::Completed,
+    PlanStatus::Abandoned,
+];
+
 fn status_class(status: &PlanStatus) -> &'static str {
     match status {
         PlanStatus::Draft => "plan-status plan-status-draft",
@@ -40,6 +47,24 @@ fn status_label(status: &PlanStatus) -> &'static str {
     match status {
         PlanStatus::Draft => "draft",
         PlanStatus::Active => "active",
+        PlanStatus::Completed => "completed",
+        PlanStatus::Abandoned => "abandoned",
+    }
+}
+
+fn plan_group_label(s: PlanStatus) -> &'static str {
+    match s {
+        PlanStatus::Active => "Active",
+        PlanStatus::Draft => "Draft",
+        PlanStatus::Completed => "Completed",
+        PlanStatus::Abandoned => "Abandoned",
+    }
+}
+
+fn plan_group_slug(s: PlanStatus) -> &'static str {
+    match s {
+        PlanStatus::Active => "active",
+        PlanStatus::Draft => "draft",
         PlanStatus::Completed => "completed",
         PlanStatus::Abandoned => "abandoned",
     }
@@ -113,6 +138,30 @@ fn build_subtree(plan: Plan, all: &[Plan]) -> PlanTreeNode {
         .map(|child| build_subtree(child, all))
         .collect();
     PlanTreeNode { plan, children }
+}
+
+fn group_roots_by_status(roots: Vec<PlanTreeNode>) -> Vec<(PlanStatus, Vec<PlanTreeNode>)> {
+    let mut buckets: [Vec<PlanTreeNode>; 4] = Default::default();
+    for node in roots {
+        if let Some(idx) = PLAN_GROUP_ORDER
+            .iter()
+            .position(|&status| status == node.plan.status)
+        {
+            buckets[idx].push(node);
+        }
+    }
+    PLAN_GROUP_ORDER
+        .iter()
+        .copied()
+        .zip(buckets)
+        .filter_map(|(status, nodes)| {
+            if nodes.is_empty() {
+                None
+            } else {
+                Some((status, nodes))
+            }
+        })
+        .collect()
 }
 
 // ── Treeview renderer ─────────────────────────────────────────────────────────
@@ -302,13 +351,34 @@ pub fn PlansPanel() -> impl IntoView {
                                             <p class="plans-empty">"No plans yet."</p>
                                         }.into_any()
                                     } else {
-                                        let tree = build_tree(ps);
-                                        let nodes: Vec<AnyView> = tree
+                                        let groups: Vec<AnyView> = group_roots_by_status(build_tree(ps))
                                             .into_iter()
-                                            .map(|node| plan_node_view(node, 0))
+                                            .map(|(status, group_nodes)| {
+                                                let count = group_nodes.len();
+                                                let header_class = format!(
+                                                    "plan-group__header plan-group__header--{}",
+                                                    plan_group_slug(status),
+                                                );
+                                                let nodes: Vec<AnyView> = group_nodes
+                                                    .into_iter()
+                                                    .map(|node| plan_node_view(node, 0))
+                                                    .collect();
+                                                view! {
+                                                    <section class="plan-group">
+                                                        <div class=header_class>
+                                                            <span class="plan-group__label">
+                                                                {plan_group_label(status)}
+                                                            </span>
+                                                            <span class="plan-group__count">{count}</span>
+                                                        </div>
+                                                        {nodes}
+                                                    </section>
+                                                }
+                                                .into_any()
+                                            })
                                             .collect();
                                         view! {
-                                            <div class="plan-tree">{nodes}</div>
+                                            <div class="plan-tree">{groups}</div>
                                         }.into_any()
                                     }
                                 }}
@@ -320,5 +390,54 @@ pub fn PlansPanel() -> impl IntoView {
                 _ => view! { <div class="plans-aside-hidden" /> }.into_any(),
             }
         }}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use taskagent_domain::Actor;
+    use taskagent_shared::{time, PlanId, ProjectId};
+
+    fn node(title: &str, status: PlanStatus) -> PlanTreeNode {
+        let now = time::now();
+        PlanTreeNode {
+            plan: Plan {
+                id: PlanId::new(),
+                project_id: ProjectId::new(),
+                parent_plan_id: None,
+                title: title.to_string(),
+                description: String::new(),
+                goal: String::new(),
+                success_criteria: Vec::new(),
+                status,
+                owner: Actor::user(),
+                created_at: now,
+                updated_at: now,
+                archived_at: None,
+                source_brief: None,
+            },
+            children: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn group_roots_by_status_orders_groups_and_preserves_root_order() {
+        let groups = group_roots_by_status(vec![
+            node("draft", PlanStatus::Draft),
+            node("active-1", PlanStatus::Active),
+            node("completed", PlanStatus::Completed),
+            node("active-2", PlanStatus::Active),
+        ]);
+
+        assert_eq!(groups.len(), 3);
+        assert_eq!(groups[0].0, PlanStatus::Active);
+        assert_eq!(groups[0].1.len(), 2);
+        assert_eq!(groups[0].1[0].plan.title, "active-1");
+        assert_eq!(groups[0].1[1].plan.title, "active-2");
+        assert_eq!(groups[1].0, PlanStatus::Draft);
+        assert_eq!(groups[1].1.len(), 1);
+        assert_eq!(groups[2].0, PlanStatus::Completed);
+        assert_eq!(groups[2].1.len(), 1);
     }
 }

@@ -595,6 +595,43 @@ h1 {
 
 /* ── Plan treeview ──────────────────────────────────────────────────────────── */
 
+.plan-group {
+  display: block;
+  margin: 0 0 0.5rem 0;
+}
+
+.plan-group__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.plan-group__label {
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.plan-group__count {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: auto;
+  padding: 0 0.4rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 10px;
+}
+
+.plan-group__header--active    { border-left: 3px solid var(--done); }
+.plan-group__header--draft     { border-left: 3px solid var(--p2); }
+.plan-group__header--completed { border-left: 3px solid var(--accent); }
+.plan-group__header--abandoned { border-left: 3px solid var(--muted); }
+
 .plan-tree {
   display: flex;
   flex-direction: column;
