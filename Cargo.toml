@@ -6,7 +6,7 @@
 # path override. The OSS server is a bare API + MCP backend and no longer bundles
 # this read-only viewer.
 [workspace]
-# vendor/oss is a symlink into the OSS checkout; keep its crates out of this
+# vendor/oss is a submodule of the OSS repo; keep its crates out of this
 # workspace so their `*.workspace = true` fields resolve against the OSS root.
 exclude = ["vendor"]
 

@@ -2,8 +2,6 @@
 /dist
 **/*.rs.bk
 Cargo.lock
-# vendor/oss is a local symlink to a sibling TaskAgent checkout — never commit it.
-/vendor/oss
 
 # Local agent/tool state.
 /.omc

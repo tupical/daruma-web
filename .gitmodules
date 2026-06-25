@@ -1,0 +1,3 @@
+[submodule "vendor/oss"]
+	path = vendor/oss
+	url = https://github.com/tupical/taskagent.git
