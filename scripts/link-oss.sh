@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # link-oss.sh — Ensure vendor/oss is populated.
 #
-# vendor/oss is a git submodule (tupical/taskagent.git), replacing the former
+# vendor/oss is a git submodule (tupical/daruma.git), replacing the former
 # local symlink. This initialises/updates that submodule so Cargo path deps
 # under vendor/oss/crates/* resolve.
 #

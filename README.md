@@ -14,7 +14,7 @@ Prerequisites:
 - Trunk 0.21+
 
 ```bash
-# vendor/oss is a git submodule of github.com/tupical/taskagent
+# vendor/oss is a git submodule of github.com/tupical/daruma
 sh scripts/link-oss.sh        # wraps: git submodule update --init vendor/oss
 NO_COLOR=false trunk serve --config Trunk.dev.toml
 ```
