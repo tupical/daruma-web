@@ -12,10 +12,10 @@ Prerequisites:
 
 - Rust with the `wasm32-unknown-unknown` target
 - Trunk 0.21+
-- A sibling TaskAgent checkout at `../taskagent`
 
 ```bash
-sh scripts/link-oss.sh
+# vendor/oss is a git submodule of github.com/tupical/taskagent
+sh scripts/link-oss.sh        # wraps: git submodule update --init vendor/oss
 NO_COLOR=false trunk serve --config Trunk.dev.toml
 ```
 
