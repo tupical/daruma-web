@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical local dev env: ~/.agents/taskagent/data + sibling taskagent OSS.
+# Canonical local dev env: ~/.agents/daruma/data + sibling daruma OSS.
 # Usage:
 #   eval "$(./scripts/dev-stack.sh)"
 #   ./scripts/dev-stack.sh server
@@ -7,17 +7,17 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OSS_ROOT="${TASKAGENT_OSS_ROOT:-$(cd "$ROOT/../taskagent" && pwd)}"
-AGENT_HOME="${TASKAGENT_AGENT_DIR:-${HOME:?HOME unset}/.agents/taskagent}"
-DATA_DIR="${TASKAGENT_DATA_DIR:-$AGENT_HOME/data}"
+OSS_ROOT="${DARUMA_OSS_ROOT:-$(cd "$ROOT/../taskagent" && pwd)}"
+AGENT_HOME="${DARUMA_AGENT_DIR:-${HOME:?HOME unset}/.agents/daruma}"
+DATA_DIR="${DARUMA_DATA_DIR:-$AGENT_HOME/data}"
 
-export TASKAGENT_DATA_DIR="$DATA_DIR"
-export TASKAGENT_OSS_ROOT="$OSS_ROOT"
+export DARUMA_DATA_DIR="$DATA_DIR"
+export DARUMA_OSS_ROOT="$OSS_ROOT"
 
 emit_env() {
   cat <<EOF
-export TASKAGENT_DATA_DIR='$DATA_DIR'
-export TASKAGENT_OSS_ROOT='$OSS_ROOT'
+export DARUMA_DATA_DIR='$DATA_DIR'
+export DARUMA_OSS_ROOT='$OSS_ROOT'
 EOF
 }
 
@@ -31,8 +31,8 @@ case "$cmd" in
     mkdir -p "$DATA_DIR"
     emit_env
     cd "$OSS_ROOT"
-    exec env TASKAGENT_DATA_DIR="$DATA_DIR" \
-      cargo run -p taskagent-server
+    exec env DARUMA_DATA_DIR="$DATA_DIR" \
+      cargo run -p daruma-server
   ;;
   print-url)
     token_file="$DATA_DIR/bootstrap.token"

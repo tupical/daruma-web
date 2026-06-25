@@ -2,7 +2,7 @@ use gloo_net::http::Request;
 use leptos::prelude::*;
 use serde::Deserialize;
 
-const CONFIG_URL: &str = "/.well-known/taskagent-shell.json";
+const CONFIG_URL: &str = "/.well-known/daruma-shell.json";
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct HostShellConfig {

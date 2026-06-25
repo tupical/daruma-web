@@ -1,11 +1,11 @@
 [module]
-name         = "taskagent-web"
+name         = "daruma-web"
 kind         = "client"
 status       = "shipped"
 owner        = "clients"
 contract     = "/v1/* + WS"
 contract_min = "v1"
-repo_path    = "taskagent-web (standalone repo)"
+repo_path    = "daruma-web (standalone repo)"
 runtime      = "Rust/WASM (Leptos 0.7, csr)"
 read_only    = true
 
@@ -13,7 +13,7 @@ read_only    = true
 source       = "git"
 repo         = "https://github.com/tupical/daruma"
 version      = "0.1.0"
-tag          = "taskagent-v0.1.0"
+tag          = "daruma-v0.1.0"
 dev_override = "vendor/oss -> ../taskagent"
 
 [capabilities]

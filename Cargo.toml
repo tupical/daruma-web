@@ -1,7 +1,7 @@
-# Standalone workspace — taskagent-web (Leptos CSR → WASM).
+# Standalone workspace — daruma-web (Leptos CSR → WASM).
 #
 # This repo was extracted from the OSS monorepo (`apps/web-leptos`). It builds
-# independently against a released TaskAgent OSS core. During development,
+# independently against a released Daruma OSS core. During development,
 # `vendor/oss` may point at a sibling checkout (see scripts/link-oss.sh) as a
 # path override. The OSS server is a bare API + MCP backend and no longer bundles
 # this read-only viewer.
@@ -11,14 +11,14 @@
 exclude = ["vendor"]
 
 [package]
-name = "taskagent-web"
+name = "daruma-web"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.80"
 license = "Apache-2.0 WITH Commons-Clause"
 
 [[bin]]
-name = "taskagent-web"
+name = "daruma-web"
 path = "src/main.rs"
 
 [dependencies]
@@ -35,7 +35,7 @@ web-sys = { version = "0.3", features = [
   "Window", "Storage", "Location", "Navigator", "Clipboard",
 ] }
 
-# OSS crates. Release builds should pin these to a TaskAgent git tag; this
+# OSS crates. Release builds should pin these to a Daruma git tag; this
 # checkout keeps path dependencies as the local development override until the
 # first immutable public tag is cut.
 taskagent-shared  = { path = "vendor/oss/crates/shared" }

@@ -31,7 +31,7 @@ fn GraphApp() -> impl IntoView {
         <div class="app app--graph">
             <div class="header">
                 <div class="header-row">
-                    <div class="viewer-title">"TaskAgent OSS Viewer"</div>
+                    <div class="viewer-title">"Daruma OSS Viewer"</div>
                     <HostShellNav />
                 </div>
             </div>
@@ -48,7 +48,7 @@ fn ActivityApp() -> impl IntoView {
         <div class="app app--activity">
             <div class="header">
                 <div class="header-row">
-                    <div class="viewer-title">"TaskAgent OSS Viewer"</div>
+                    <div class="viewer-title">"Daruma OSS Viewer"</div>
                     <HostShellNav />
                 </div>
             </div>
@@ -79,7 +79,7 @@ fn WorkspaceApp() -> impl IntoView {
         <div class="app">
             <div class="header">
                 <div class="header-row">
-                    <div class="viewer-title">"TaskAgent OSS Viewer"</div>
+                    <div class="viewer-title">"Daruma OSS Viewer"</div>
                     <HostShellNav />
                 </div>
                 <ProjectBar />
