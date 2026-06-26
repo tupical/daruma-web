@@ -41,7 +41,7 @@
 //! (all fields are `Copy` signals) so it can be captured by multiple closures.
 
 use leptos::prelude::*;
-use taskagent_events::{Channel, EventEnvelope};
+use daruma_events::{Channel, EventEnvelope};
 
 /// Connection lifecycle state exposed to UI components.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -38,10 +38,10 @@ web-sys = { version = "0.3", features = [
 # OSS crates. Release builds should pin these to a Daruma git tag; this
 # checkout keeps path dependencies as the local development override until the
 # first immutable public tag is cut.
-taskagent-shared  = { path = "vendor/oss/crates/shared" }
-taskagent-domain  = { path = "vendor/oss/crates/domain" }
-taskagent-events  = { path = "vendor/oss/crates/events" }
-taskagent-api-dto = { path = "vendor/oss/crates/api-dto" }
+daruma-shared  = { path = "vendor/oss/crates/shared" }
+daruma-domain  = { path = "vendor/oss/crates/domain" }
+daruma-events  = { path = "vendor/oss/crates/events" }
+daruma-api-dto = { path = "vendor/oss/crates/api-dto" }
 
 gloo-timers = { version = "0.3", features = ["futures"] }
 wasm-bindgen-futures = "0.4"

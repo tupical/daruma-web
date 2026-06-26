@@ -7,8 +7,8 @@
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use taskagent_domain::{Relation, RelationKind};
-use taskagent_shared::TaskId;
+use daruma_domain::{Relation, RelationKind};
+use daruma_shared::TaskId;
 
 /// Per-task aggregate counts derived from a flat list of `Relation`s.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]

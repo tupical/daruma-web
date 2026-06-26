@@ -24,8 +24,8 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
-use taskagent_api_dto::ws::{WsClientMessage, WsServerMessage};
-use taskagent_events::{Channel, EventEnvelope};
+use daruma_api_dto::ws::{WsClientMessage, WsServerMessage};
+use daruma_events::{Channel, EventEnvelope};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api;

@@ -22,8 +22,8 @@
 use crate::api;
 use crate::event_store::{ConnState, EventStoreCtx};
 use leptos::prelude::*;
-use taskagent_events::{Channel, Event, EventEnvelope};
-use taskagent_shared::time::Timestamp;
+use daruma_events::{Channel, Event, EventEnvelope};
+use daruma_shared::time::Timestamp;
 use wasm_bindgen_futures::spawn_local;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ impl FeedRow {
 // ── EventEnvelope → FeedEntry ─────────────────────────────────────────────────
 
 fn actor_label(env: &EventEnvelope) -> String {
-    use taskagent_domain::Actor;
+    use daruma_domain::Actor;
     match &env.actor {
         Actor::User => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
@@ -152,7 +152,7 @@ fn actor_label(env: &EventEnvelope) -> String {
 }
 
 fn is_agent_actor(env: &EventEnvelope) -> bool {
-    use taskagent_domain::Actor;
+    use daruma_domain::Actor;
     matches!(&env.actor, Actor::Agent { .. })
 }
 
@@ -442,7 +442,7 @@ fn build_rows(entries: Vec<FeedEntry>) -> Vec<FeedRow> {
 // ── Time formatting ───────────────────────────────────────────────────────────
 
 fn format_time(ts: Timestamp) -> String {
-    // Timestamp is chrono::DateTime<Utc> via taskagent_shared::time.
+    // Timestamp is chrono::DateTime<Utc> via daruma_shared::time.
     use chrono::Timelike;
     let dt: chrono::DateTime<chrono::Utc> = ts.into();
     format!("{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second())
