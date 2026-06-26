@@ -48,8 +48,8 @@ daruma-web renders **execution results** only:
 - Documents and artifacts produced by runs
 - Workspace graph (project/task relations)
 
-**Upper-layer MCPBox entities** (knowledge, hypothesis, decision,
-sensemaking, and similar `mcpbox_*` types) are **not displayed here.**
+**Upper-layer SaaS entities** (knowledge, hypothesis, decision,
+sensemaking, and similar SaaS-layer types) are **not displayed here.**
 Those belong to a separate viewer or layer. Pull requests that add
 upper-layer entity visualisations to this repository will be declined at
 review.
