@@ -3,9 +3,9 @@ use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::HashMap;
-use taskagent_domain::{Plan, PlanPatch, PlanStatus};
-use taskagent_events::{Event, EventEnvelope};
-use taskagent_shared::time::Timestamp;
+use daruma_domain::{Plan, PlanPatch, PlanStatus};
+use daruma_events::{Event, EventEnvelope};
+use daruma_shared::time::Timestamp;
 use wasm_bindgen_futures::spawn_local;
 
 const PLAN_GROUP_ORDER: &[PlanStatus] = &[
@@ -396,8 +396,8 @@ pub fn PlansPanel() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use taskagent_domain::Actor;
-    use taskagent_shared::{time, PlanId, ProjectId};
+    use daruma_domain::Actor;
+    use daruma_shared::{time, PlanId, ProjectId};
 
     fn node(title: &str, status: PlanStatus) -> PlanTreeNode {
         let now = time::now();

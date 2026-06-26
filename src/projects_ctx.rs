@@ -1,8 +1,8 @@
 use leptos::prelude::*;
 use std::collections::HashMap;
-use taskagent_domain::Project;
-use taskagent_events::{Event, EventEnvelope};
-use taskagent_shared::ProjectId;
+use daruma_domain::Project;
+use daruma_events::{Event, EventEnvelope};
+use daruma_shared::ProjectId;
 
 use crate::ws::WsCtx;
 
@@ -179,7 +179,7 @@ pub fn init_projects_ctx() -> ProjectsCtx {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use taskagent_domain::Actor;
+    use daruma_domain::Actor;
 
     #[test]
     fn apply_project_event_creates_idempotently_updates_and_deletes() {

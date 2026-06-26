@@ -1,10 +1,10 @@
 //! Bearer-token storage and bootstrap for the Leptos/WASM frontend.
 //!
-//! All state is kept in `localStorage` under the key `taskagent_token`.
+//! All state is kept in `localStorage` under the key `daruma_token`.
 //! No reactive signals: callers that need reactivity wrap `current()` in a
 //! Leptos signal themselves.
 
-const STORAGE_KEY: &str = "taskagent_token";
+const STORAGE_KEY: &str = "daruma_token";
 
 /// Return the stored token, if any.
 pub fn current() -> Option<String> {

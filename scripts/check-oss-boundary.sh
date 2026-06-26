@@ -3,7 +3,7 @@
 # Cloud-specific endpoints leak into the OSS web viewer source.
 #
 # OSS-policy summary:
-#   ALLOWED  generic relative endpoints: /v1/*, /.well-known/taskagent-shell.json
+#   ALLOWED  generic relative endpoints: /v1/*, /.well-known/daruma-shell.json
 #   FORBIDDEN Cloud/SaaS brand terms and any hardcoded Cloud-host URLs
 #
 # Run:  bash scripts/check-oss-boundary.sh
@@ -39,8 +39,8 @@ declare -a WHITELIST=(
     "${SCRIPT_NAME}"
     # Lines that are pure Rust doc-comments explaining the OSS boundary policy
     "^[[:space:]]*//"
-    # Allow /.well-known/taskagent-shell.json occurrences (generic endpoint)
-    "well-known/taskagent-shell"
+    # Allow /.well-known/daruma-shell.json occurrences (generic endpoint)
+    "well-known/daruma-shell"
 )
 
 found=0
@@ -76,7 +76,7 @@ else
         echo "  ${v}" >&2
     done
     echo "" >&2
-    echo "Only generic endpoints (/v1/*, /.well-known/taskagent-shell.json) are" >&2
+    echo "Only generic endpoints (/v1/*, /.well-known/daruma-shell.json) are" >&2
     echo "allowed in the OSS web viewer. Remove all Cloud/SaaS-specific terms." >&2
     exit 1
 fi

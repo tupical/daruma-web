@@ -15,8 +15,8 @@ use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::HashMap;
-use taskagent_domain::{Document, DocumentKind};
-use taskagent_events::{Event, EventEnvelope};
+use daruma_domain::{Document, DocumentKind};
+use daruma_events::{Event, EventEnvelope};
 use wasm_bindgen_futures::spawn_local;
 
 fn kind_label(k: DocumentKind) -> &'static str {

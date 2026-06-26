@@ -6,13 +6,13 @@
 
 use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
-use taskagent_domain::{Document, Plan, Project, Task};
-use taskagent_events::EventEnvelope;
+use daruma_domain::{Document, Plan, Project, Task};
+use daruma_events::EventEnvelope;
 
 use crate::auth;
 
-pub use taskagent_api_dto::PlanWithProgress;
-pub use taskagent_domain::{Relation, TaskRelations};
+pub use daruma_api_dto::PlanWithProgress;
+pub use daruma_domain::{Relation, TaskRelations};
 
 // Empty = same-origin relative URLs. In dev (`trunk serve`), Trunk's [[proxy]]
 // in Trunk.toml forwards /v1/* to the local API on :8080.

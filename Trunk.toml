@@ -15,14 +15,14 @@ port = 5174
 
 # Dev proxy: in prod the frontend is same-origin with the API, but `trunk serve`
 # runs on a different port. Forward /v1/* HTTP requests and /v1/ws WebSocket
-# upgrades to a locally running taskagent-server on :8080.
+# upgrades to a locally running daruma-server on :8080.
 [[proxy]]
 backend = "http://127.0.0.1:8080/v1/"
 rewrite = "/v1/"
 
 [[proxy]]
-backend = "http://127.0.0.1:8080/.well-known/taskagent-shell.json"
-rewrite = "/.well-known/taskagent-shell.json"
+backend = "http://127.0.0.1:8080/.well-known/daruma-shell.json"
+rewrite = "/.well-known/daruma-shell.json"
 
 [[proxy]]
 backend = "http://127.0.0.1:8080/workspaces"

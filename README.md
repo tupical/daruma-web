@@ -1,8 +1,8 @@
-# taskagent-web
+# daruma-web
 
-Read-only Leptos/WASM web UI for TaskAgent.
+Read-only Leptos/WASM web UI for Daruma.
 
-The app connects to a TaskAgent API server through `/v1/*` REST endpoints and
+The app connects to a Daruma API server through `/v1/*` REST endpoints and
 `/v1/ws`. It is a static frontend: build it with Trunk and serve the generated
 `dist/` directory from any static host.
 
@@ -37,11 +37,11 @@ trunk build --release --public-url /web/
 
 This UI is an observability surface. It lists and inspects tasks, projects,
 plans, runs, documents, relations, and realtime updates. It does not create or
-mutate TaskAgent data.
+mutate Daruma data.
 
-### What taskagent-web displays (OSS boundary)
+### What daruma-web displays (OSS boundary)
 
-taskagent-web renders **execution results** only:
+daruma-web renders **execution results** only:
 
 - Tasks, projects, plans, plan progress
 - Run history and activity feed
@@ -56,12 +56,12 @@ review.
 
 ## Host-shell integration contract
 
-taskagent-web is designed to be embedded inside a larger host application
+daruma-web is designed to be embedded inside a larger host application
 (e.g. a Cloud dashboard, a local switcher). The **only** supported
 integration point is a JSON file served by the host at:
 
 ```
-/.well-known/taskagent-shell.json
+/.well-known/daruma-shell.json
 ```
 
 The viewer fetches this URL on startup. If the file is absent or returns
@@ -86,14 +86,14 @@ Accepted URL values: absolute `https://…`, `http://…`, or root-relative
 
 ### Rules for host integration
 
-1. **No hardcoded Cloud or SaaS URLs** inside taskagent-web source. Any
-   host-specific URL must come from `/.well-known/taskagent-shell.json`
+1. **No hardcoded Cloud or SaaS URLs** inside daruma-web source. Any
+   host-specific URL must come from `/.well-known/daruma-shell.json`
    at runtime.
 2. Adding a new host integration point (button, link, label, feature flag)
    requires extending `HostShellConfig` and the JSON contract — not
    hardcoding a URL or brand name in the Rust/HTML source.
 3. The OSS viewer must remain fully functional when
-   `/.well-known/taskagent-shell.json` is absent.
+   `/.well-known/daruma-shell.json` is absent.
 
 Source: `src/host_shell.rs` (config struct and fetch logic),
 `src/components/host_shell_nav.rs` (nav rendering).

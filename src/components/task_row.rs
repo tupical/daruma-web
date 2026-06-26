@@ -2,8 +2,8 @@ use crate::api::{self, TaskRelations};
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::relations_ctx::RelationsCtx;
 use leptos::prelude::*;
-use taskagent_domain::{Actor, Priority, Relation, RelationKind, Task};
-use taskagent_shared::ProjectId;
+use daruma_domain::{Actor, Priority, Relation, RelationKind, Task};
+use daruma_shared::ProjectId;
 
 #[component]
 pub fn TaskRow(task: Task) -> impl IntoView {
@@ -41,28 +41,28 @@ pub fn TaskRow(task: Task) -> impl IntoView {
     // `None` = not loaded yet; `Some(Err(_))` = load failed; `Some(Ok(_))` = ready.
     let relations: RwSignal<Option<Result<TaskRelations, String>>> = RwSignal::new(None);
 
-    let row_class = if status == taskagent_domain::Status::Done {
+    let row_class = if status == daruma_domain::Status::Done {
         "task-row done"
     } else {
         "task-row"
     };
 
     let status_label = match status {
-        taskagent_domain::Status::Inbox => "Inbox",
-        taskagent_domain::Status::Todo => "Todo",
-        taskagent_domain::Status::InProgress => "In Progress",
-        taskagent_domain::Status::InReview => "In Review",
-        taskagent_domain::Status::Done => "✓ Done",
-        taskagent_domain::Status::Cancelled => "✗ Cancelled",
+        daruma_domain::Status::Inbox => "Inbox",
+        daruma_domain::Status::Todo => "Todo",
+        daruma_domain::Status::InProgress => "In Progress",
+        daruma_domain::Status::InReview => "In Review",
+        daruma_domain::Status::Done => "✓ Done",
+        daruma_domain::Status::Cancelled => "✗ Cancelled",
     };
 
     let status_class = match status {
-        taskagent_domain::Status::Inbox => "status status-inbox",
-        taskagent_domain::Status::Todo => "status status-todo",
-        taskagent_domain::Status::InProgress => "status status-in-progress",
-        taskagent_domain::Status::InReview => "status status-in-review",
-        taskagent_domain::Status::Done => "status status-done",
-        taskagent_domain::Status::Cancelled => "status status-cancelled",
+        daruma_domain::Status::Inbox => "status status-inbox",
+        daruma_domain::Status::Todo => "status status-todo",
+        daruma_domain::Status::InProgress => "status status-in-progress",
+        daruma_domain::Status::InReview => "status status-in-review",
+        daruma_domain::Status::Done => "status status-done",
+        daruma_domain::Status::Cancelled => "status status-cancelled",
     };
 
     let filter = projects_ctx.current_filter;
@@ -134,7 +134,7 @@ pub fn TaskRow(task: Task) -> impl IntoView {
                 { move || {
                     let map = relations_ctx.counts.get();
                     let c = map.get(&this_task_id).copied().unwrap_or_default();
-                    let is_done = status == taskagent_domain::Status::Done;
+                    let is_done = status == daruma_domain::Status::Done;
                     if c.blocked_by > 0 && !is_done {
                         let title_attr = format!("blocked by {} task(s)", c.blocked_by);
                         view! {
@@ -213,7 +213,7 @@ pub fn TaskRow(task: Task) -> impl IntoView {
 /// Render the 5-group relation projection as nested sections.
 /// Each group is hidden when empty; entire block collapses when all are empty.
 fn render_relations(
-    self_id: taskagent_shared::TaskId,
+    self_id: daruma_shared::TaskId,
     rels: &TaskRelations,
 ) -> leptos::prelude::AnyView {
     use leptos::prelude::*;
@@ -274,7 +274,7 @@ fn render_relations(
 fn relation_group(
     label: &'static str,
     css_class: &'static str,
-    self_id: taskagent_shared::TaskId,
+    self_id: daruma_shared::TaskId,
     rels: &[Relation],
 ) -> leptos::prelude::AnyView {
     use leptos::prelude::*;
