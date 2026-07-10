@@ -14,6 +14,28 @@ use app::App;
 
 fn main() {
     console_error_panic_hook::set_once();
+    wasm_bindgen_futures::spawn_local(async {
+        if let Some(code) = auth::code_from_url() {
+            if let Err(err) = auth::exchange_code(code).await {
+                leptos::logging::error!("[auth] oauth exchange failed: {err}");
+                return;
+            }
+            auth::clean_oauth_url();
+        }
+
+        let _ = auth::bootstrap();
+        if auth::current().is_none() {
+            if let Err(err) = auth::start_oauth().await {
+                leptos::logging::error!("[auth] oauth start failed: {err}");
+            }
+            return;
+        }
+
+        mount_app();
+    });
+}
+
+fn mount_app() {
     let _ = auth::bootstrap();
     let store = event_store::EventStoreCtx::new();
     let ws_ctx = ws::spawn_ws(auth::current().unwrap_or_default(), store);
