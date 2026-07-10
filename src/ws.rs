@@ -19,13 +19,13 @@
 //! All events are forwarded to both [`WsCtx`] (backward compat) and the
 //! shared [`EventStoreCtx`] (new API for workers 2 & 3).
 
+use daruma_api_dto::ws::{WsClientMessage, WsServerMessage};
+use daruma_events::{Channel, EventEnvelope};
 use futures_util::{SinkExt, StreamExt};
 use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
-use daruma_api_dto::ws::{WsClientMessage, WsServerMessage};
-use daruma_events::{Channel, EventEnvelope};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api;
@@ -126,7 +126,15 @@ async fn connect_loop(
         status_w.set(WsStatus::Connecting);
         store.set_conn_state(ConnState::Connecting);
 
-        let url = format!("{}/v1/ws", ws_base());
+        let url = if token.is_empty() {
+            format!("{}/v1/ws", ws_base())
+        } else {
+            format!(
+                "{}/v1/ws?token={}",
+                ws_base(),
+                crate::auth::encode_component(&token)
+            )
+        };
         let ws = if token.is_empty() {
             WebSocket::open_with_protocol(&url, WS_PROTOCOL)
         } else {
