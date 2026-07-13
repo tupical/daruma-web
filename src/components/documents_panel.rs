@@ -17,7 +17,6 @@ use leptos::prelude::*;
 use std::collections::HashMap;
 use daruma_domain::{Document, DocumentKind};
 use daruma_events::{Event, EventEnvelope};
-use wasm_bindgen_futures::spawn_local;
 
 fn kind_label(k: DocumentKind) -> &'static str {
     match k {
@@ -127,7 +126,10 @@ pub fn DocumentsPanel() -> impl IntoView {
             m.insert(pid.clone(), my_seq);
         });
 
-        spawn_local(async move {
+        // Cancel-on-cleanup: the future reads component-owned signals
+        // (`fetch_seq`) after the await, so a plain spawn would panic if the
+        // route is disposed mid-fetch. See task_list.rs for the full rationale.
+        leptos::task::spawn_local_scoped_with_cancellation(async move {
             let mut ds = api::list_project_documents(&pid).await.unwrap_or_default();
             ws_events.with_untracked(|evs| {
                 let now_len = evs.len();

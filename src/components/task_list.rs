@@ -296,7 +296,14 @@ pub fn TaskList() -> impl IntoView {
             m.insert(key.clone(), my_seq);
         });
 
-        spawn_local(async move {
+        // Scoped + cancel-on-cleanup: this future reads component-owned signals
+        // (`fetch_seq`, `current_key`, `cache`) *after* the await. If the route
+        // is torn down mid-fetch (navigating between `/:workspace` and
+        // `/:workspace/:project`, which are distinct router matches), a plain
+        // spawn would resume and touch disposed signals → panic. Cancellation
+        // aborts it on unmount, and on filter change it drops the stale fetch
+        // that `fetch_seq` would have discarded anyway.
+        leptos::task::spawn_local_scoped_with_cancellation(async move {
             let pid_arg: Option<String> = match &f {
                 ProjectFilter::All => None,
                 ProjectFilter::Inbox => Some("inbox".to_string()),

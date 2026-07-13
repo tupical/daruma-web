@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use daruma_domain::{Plan, PlanPatch, PlanStatus};
 use daruma_events::{Event, EventEnvelope};
 use daruma_shared::time::Timestamp;
-use wasm_bindgen_futures::spawn_local;
 
 const PLAN_GROUP_ORDER: &[PlanStatus] = &[
     PlanStatus::Active,
@@ -289,7 +288,10 @@ pub fn PlansPanel() -> impl IntoView {
             m.insert(pid.clone(), my_seq);
         });
 
-        spawn_local(async move {
+        // Cancel-on-cleanup: the future reads component-owned signals
+        // (`fetch_seq`) after the await, so a plain spawn would panic if the
+        // route is disposed mid-fetch. See task_list.rs for the full rationale.
+        leptos::task::spawn_local_scoped_with_cancellation(async move {
             let mut ps = api::list_plans(&pid).await.unwrap_or_default();
             // Catch up to events that arrived during the in-flight fetch.
             ws_events.with_untracked(|evs| {
