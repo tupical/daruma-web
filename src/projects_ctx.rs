@@ -75,6 +75,7 @@ pub fn filter_to_segment(filter: &ProjectFilter, projects: &[Project]) -> String
             .iter()
             .find(|p| p.id == *pid)
             .map(|p| p.slug.clone())
+            .filter(|s| !s.is_empty())
             .unwrap_or_else(|| pid.to_string()),
     }
 }
@@ -84,7 +85,15 @@ fn apply_project_event(env: &EventEnvelope, list: &mut Vec<Project>) {
     match &env.payload {
         Event::ProjectCreated { project } => {
             if let Some(existing) = list.iter_mut().find(|p| p.id == project.id) {
+                // Pre-migration-0018 `project_created` events replay with an
+                // empty slug; keep the slug we already have from the API.
+                let slug = if project.slug.is_empty() {
+                    std::mem::take(&mut existing.slug)
+                } else {
+                    project.slug.clone()
+                };
                 *existing = project.clone();
+                existing.slug = slug;
             } else {
                 list.push(project.clone());
             }
@@ -208,6 +217,16 @@ mod tests {
             &mut list,
         );
         assert_eq!(list.len(), 1);
+
+        // Replay of a pre-slug event (empty slug) must not wipe the slug
+        // we already have from `GET /v1/projects`.
+        let mut pre_slug = project.clone();
+        pre_slug.slug = String::new();
+        apply_project_event(
+            &EventEnvelope::new(Actor::user(), Event::ProjectCreated { project: pre_slug }),
+            &mut list,
+        );
+        assert_eq!(list[0].slug, project.slug);
 
         apply_project_event(
             &EventEnvelope::new(
