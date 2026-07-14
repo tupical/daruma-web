@@ -1,6 +1,6 @@
 use crate::components::{
-    ActivityFeed, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, StatusBar, TaskList,
-    WorkspaceGraph,
+    ActivityFeed, ArtifactsPanel, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, StatusBar,
+    TaskList, WorkspaceGraph,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
@@ -96,6 +96,7 @@ fn WorkspaceApp() -> impl IntoView {
             <aside class="plans-aside">
                 <PlansPanel />
                 <DocumentsPanel />
+                <ArtifactsPanel />
             </aside>
             <StatusBar />
         </div>

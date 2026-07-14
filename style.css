@@ -828,6 +828,184 @@ h1 {
   padding: 0.25rem 0 0.5rem;
 }
 
+/* ── Artifact Registry panel ─────────────────────────────────────────────────── */
+
+.artifacts-panel {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2rem;
+}
+
+.artifacts-aside-hidden {
+  display: none;
+}
+
+.artifacts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.artifacts-title {
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.artifacts-empty {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-size: 12px;
+}
+
+.artifact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.artifact-row-wrapper {
+  display: block;
+}
+
+.artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.4rem;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+.artifact-row:hover { border-color: var(--muted); }
+
+.artifact-kind-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  border: 1px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.artifact-kind-badge--artifact { color: var(--accent); border-color: rgba(83,155,245,0.4); }
+.artifact-kind-badge--file     { color: var(--done);   border-color: rgba(63,185,80,0.4); }
+.artifact-kind-badge--contract { color: #a371f7;       border-color: rgba(163,113,247,0.4); }
+.artifact-kind-badge--env      { color: var(--p1);     border-color: rgba(224,155,68,0.4); }
+
+.artifact-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Status ladder: pending -> active -> committed. Filled steps mark the
+   current stage and everything before it; deprecated (a terminal state, not
+   a further stage) is rendered as a separate pill instead — see
+   .artifact-status-deprecated below. */
+.artifact-status-ladder {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: help;
+}
+
+.artifact-status-ladder__step {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--border);
+}
+.artifact-status-ladder__step--filled { background: var(--accent); }
+
+.artifact-status-deprecated {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--p0);
+  color: var(--p0);
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.artifact-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Expanded impact sub-panel — mirrors .task-body's look. */
+.artifact-body {
+  padding: 0.5rem 0.75rem 0.75rem;
+  margin: -0.4rem 0 0.4rem;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  background: var(--bg);
+}
+
+.artifact-impact-loading,
+.artifact-impact-error,
+.artifact-impact-empty {
+  font-style: italic;
+  opacity: 0.7;
+}
+.artifact-impact-error { color: var(--p0); opacity: 0.85; font-style: normal; }
+
+.artifact-impact-summary {
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.artifact-impact-nodes,
+.artifact-impact-edges {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.35rem;
+}
+
+.artifact-impact-node,
+.artifact-impact-edge {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.1rem 0;
+}
+
+.artifact-impact-node__kind,
+.artifact-impact-edge__kind {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.artifact-impact-node__label,
+.artifact-impact-edge__from,
+.artifact-impact-edge__to {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Activity Feed ─────────────────────────────────────────────────────────── */
 
 .app--activity { flex-direction: column; }
@@ -1386,6 +1564,17 @@ h1 {
 
   .document-card__header {
     padding: 0.55rem 0.6rem;
+  }
+
+  /* Artifact rows: same title-drops-to-its-own-line treatment as task-row —
+     kind badge + status ladder + meta text would otherwise compete with the
+     title on one line. */
+  .artifact-row {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
+  .artifact-title {
+    flex: 1 1 100%;
   }
 
   /* Relation rows in the expanded task body: fixed 8rem label plus chips

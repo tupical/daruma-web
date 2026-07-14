@@ -341,6 +341,75 @@ fn urlencoding_simple(s: &str) -> String {
     out
 }
 
+// ── Artifact Registry ────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct ArtifactRow {
+    pub id: String,
+    pub uri: String,
+    /// Derived server-side from the URI scheme: "artifact" | "file" | "contract" | "env".
+    pub kind: String,
+    pub title: String,
+    pub description: String,
+    /// "pending" | "active" | "committed" | "deprecated".
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    /// Agent currently holding an active work-lease on this artifact's `uri`, if any.
+    pub current_holder_agent_id: Option<String>,
+    pub version: Option<String>,
+    pub project_id: Option<String>,
+    pub task_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ArtifactListResponse {
+    artifacts: Vec<ArtifactRow>,
+}
+
+/// `GET /v1/artifacts?project_id=…&task_id=…&status=…&kind=…` — every filter
+/// is optional; omit all for the full registry.
+pub async fn list_artifacts(
+    project_id: Option<&str>,
+    task_id: Option<&str>,
+    status: Option<&str>,
+    kind: Option<&str>,
+) -> Result<Vec<ArtifactRow>, ApiError> {
+    let mut params = Vec::new();
+    if let Some(p) = project_id {
+        params.push(format!("project_id={}", urlencoding_simple(p)));
+    }
+    if let Some(t) = task_id {
+        params.push(format!("task_id={}", urlencoding_simple(t)));
+    }
+    if let Some(s) = status {
+        params.push(format!("status={}", urlencoding_simple(s)));
+    }
+    if let Some(k) = kind {
+        params.push(format!("kind={}", urlencoding_simple(k)));
+    }
+    let mut url = format!("{API_BASE}/v1/artifacts");
+    if !params.is_empty() {
+        url.push('?');
+        url.push_str(&params.join("&"));
+    }
+    let resp: ArtifactListResponse = get_json(&url).await?;
+    Ok(resp.artifacts)
+}
+
+/// `GET /v1/artifacts/{id}/impact?limit=…` — downstream impact neighborhood,
+/// the same [`GraphNeighborhood`] shape as `workspacegraph_impact`. `id`
+/// takes the prefixed artifact-id form (`art_...`), not the bare `artifact:`
+/// graph-node id.
+pub async fn artifact_impact(id: &str, limit: Option<u32>) -> Result<GraphNeighborhood, ApiError> {
+    let mut url = format!("{API_BASE}/v1/artifacts/{}/impact", urlencoding_simple(id));
+    if let Some(l) = limit {
+        url.push_str(&format!("?limit={l}"));
+    }
+    get_json(&url).await
+}
+
 // ── Event history ─────────────────────────────────────────────────────────────
 
 /// `GET /v1/events?since={seq}&limit={limit}` — load up to `limit` events
