@@ -708,6 +708,13 @@ h1 {
 
 /* ── Plan dependency graph (VIZ-6, plan half) ────────────────────────────────── */
 
+.plan-row-toggles {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+  margin-left: 0.4rem;
+}
+
 .plan-graph-toggle {
   flex: 0 0 auto;
   background: none;
@@ -718,7 +725,6 @@ h1 {
   font-family: inherit;
   font-size: 11px;
   padding: 0.15rem 0.5rem;
-  margin-left: 0.4rem;
   transition: border-color 0.15s, color 0.15s;
 }
 .plan-graph-toggle:hover { color: var(--text); border-color: var(--accent); }
@@ -826,6 +832,137 @@ h1 {
   color: var(--muted);
   font-size: 11px;
   opacity: 0.6;
+}
+
+/* ── Run timeline (VIZ-6, run half) ──────────────────────────────────────────── */
+
+.plan-runs-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.plan-runs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.plan-run-row-wrapper {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.plan-run-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+.plan-run-row:hover { border-color: var(--muted); }
+
+.run-status {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.run-status-active    { color: var(--accent); border-color: var(--accent); }
+.run-status-completed { color: var(--done);   border-color: var(--done); }
+.run-status-failed    { color: var(--p0);     border-color: var(--p0); }
+.run-status-aborted   { color: var(--p3); }
+
+.plan-run-row__agent,
+.plan-run-row__started,
+.plan-run-row__activity {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Timeline sub-subpanel — one level deeper than .plan-graph-panel, same look. */
+.plan-run-timeline {
+  padding: 0.4rem 0.6rem 0.5rem;
+  margin: -0.2rem 0 0.4rem;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.plan-run-timeline-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.plan-run-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-run-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.plan-run-step:last-child { border-bottom: none; }
+
+.plan-run-step__task {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-run-step__time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-run-step__outcome {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+}
+.plan-run-step__outcome--pending { color: var(--accent); border-color: var(--accent); }
+.plan-run-step__outcome--done    { color: var(--done);   border-color: var(--done); }
+.plan-run-step__outcome--failed  { color: var(--p0);     border-color: var(--p0); cursor: help; }
+.plan-run-step__outcome--other   { color: var(--muted); }
+
+.plan-run-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--border);
+}
+
+.plan-run-note__meta {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.plan-run-note__body {
+  color: var(--text);
+  white-space: pre-wrap;
 }
 
 /* ── Documents panel ───────────────────────────────────────────────────────── */
@@ -1669,12 +1806,16 @@ h1 {
     padding: 0.55rem 0.6rem;
   }
 
-  /* Plan rows: chevron+title on line 1, status+progress on line 2. */
+  /* Plan rows: chevron+title on line 1, status+progress on line 2, the
+     graph/runs toggles get their own line 3 — with two buttons instead of
+     one, leaving them unplaced fell into the grid's implicit auto-placement
+     and squeezed both into a sliver of the row instead of stacking below. */
   .plan-tree-row {
     grid-template-columns: 1.2rem 1fr auto;
     grid-template-areas:
-      "chev  title  title"
-      "chev  status pct";
+      "chev  title    title"
+      "chev  status   pct"
+      "chev  toggles  toggles";
     row-gap: 0.3rem;
     column-gap: 0.5rem;
     padding: 0.5rem 0.6rem;
@@ -1683,6 +1824,7 @@ h1 {
   .plan-title   { grid-area: title; }
   .plan-status  { grid-area: status; justify-self: start; }
   .plan-pct     { grid-area: pct; justify-self: end; }
+  .plan-row-toggles { grid-area: toggles; justify-self: start; margin-left: 0; }
 
   .document-card__header {
     padding: 0.55rem 0.6rem;
@@ -1712,6 +1854,20 @@ h1 {
     row-gap: 0.2rem;
   }
   .plan-graph-node__title {
+    flex: 1 1 100%;
+    order: -1;
+  }
+
+  /* Run rows/steps: same wrap + title-drops-to-its-own-line treatment. */
+  .plan-run-row {
+    flex-wrap: wrap;
+    row-gap: 0.2rem;
+  }
+  .plan-run-step {
+    flex-wrap: wrap;
+    row-gap: 0.2rem;
+  }
+  .plan-run-step__task {
     flex: 1 1 100%;
     order: -1;
   }

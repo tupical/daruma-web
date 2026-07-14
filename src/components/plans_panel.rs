@@ -3,7 +3,7 @@ use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
-use daruma_domain::{Plan, PlanPatch, PlanStatus, Status};
+use daruma_domain::{Actor, Plan, PlanPatch, PlanStatus, Status};
 use daruma_events::{Channel, Event, EventEnvelope};
 use daruma_shared::time::Timestamp;
 use daruma_shared::TaskId;
@@ -435,6 +435,286 @@ fn task_chip(node: &api::PlanGraphNode, is_critical: bool) -> AnyView {
     .into_any()
 }
 
+// ── Run timeline (VIZ-6, run half) ──────────────────────────────────────────
+//
+// Separate lazy subpanel from the dependency graph above (its own toggle),
+// since a plan can carry several runs and cramming both into one subpanel
+// gets noisy fast. Live refresh shares the same "bump a counter, refetch
+// what's open" approach as the graph subpanel, keyed to Channel::Runs
+// instead of Plans/Tasks — that one channel covers run status, step
+// progress, and note appends alike (see `PlansPanel`'s watcher effect).
+
+fn run_status_class(status: api::RunStatus) -> &'static str {
+    match status {
+        api::RunStatus::Active => "run-status run-status-active",
+        api::RunStatus::Completed => "run-status run-status-completed",
+        api::RunStatus::Failed => "run-status run-status-failed",
+        api::RunStatus::Aborted => "run-status run-status-aborted",
+    }
+}
+
+fn run_status_label(status: api::RunStatus) -> &'static str {
+    match status {
+        api::RunStatus::Active => "active",
+        api::RunStatus::Completed => "completed",
+        api::RunStatus::Failed => "failed",
+        api::RunStatus::Aborted => "aborted",
+    }
+}
+
+/// "user" or the agent's display name — same convention as
+/// `activity_feed.rs`'s private `actor_label`, copied rather than shared
+/// (small enough, same tolerance as `short_id`).
+fn actor_label(actor: &Actor) -> String {
+    match actor {
+        Actor::User => "user".to_string(),
+        Actor::Agent { name, .. } => name.clone(),
+    }
+}
+
+fn format_ts(ts: Timestamp) -> String {
+    use chrono::{Datelike, Timelike};
+    let dt: chrono::DateTime<chrono::Utc> = ts.into();
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        dt.year(),
+        dt.month(),
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second()
+    )
+}
+
+/// Task title if the plan's dependency graph happens to be loaded already
+/// (cheap — no extra fetch), else a short id. Reads `graph_data` with the
+/// tracked `.get()`, so a step's title upgrades live if the user opens the
+/// graph subpanel *after* the run timeline.
+fn resolve_task_title(
+    task_id: TaskId,
+    graph_data: RwSignal<Option<Result<PlanGraphBundle, String>>>,
+) -> String {
+    graph_data
+        .get()
+        .and_then(|r| r.ok())
+        .and_then(|bundle| {
+            bundle
+                .graph
+                .nodes
+                .iter()
+                .find(|n| n.task_id == task_id)
+                .map(|n| n.title.clone())
+        })
+        .unwrap_or_else(|| format!("#{}", short_id(&task_id.to_string())))
+}
+
+fn outcome_badge(outcome: &Option<api::RunOutcome>) -> AnyView {
+    match outcome {
+        None => view! {
+            <span class="plan-run-step__outcome plan-run-step__outcome--pending">"running…"</span>
+        }
+        .into_any(),
+        Some(api::RunOutcome::Done) => view! {
+            <span class="plan-run-step__outcome plan-run-step__outcome--done">"done"</span>
+        }
+        .into_any(),
+        Some(api::RunOutcome::HumanCompleted) => view! {
+            <span class="plan-run-step__outcome plan-run-step__outcome--done">"human completed"</span>
+        }
+        .into_any(),
+        Some(api::RunOutcome::Superseded) => view! {
+            <span class="plan-run-step__outcome plan-run-step__outcome--other">"superseded"</span>
+        }
+        .into_any(),
+        Some(api::RunOutcome::Skipped) => view! {
+            <span class="plan-run-step__outcome plan-run-step__outcome--other">"skipped"</span>
+        }
+        .into_any(),
+        Some(api::RunOutcome::Failed { reason }) => view! {
+            <span class="plan-run-step__outcome plan-run-step__outcome--failed" title=reason.clone()>
+                "failed"
+            </span>
+        }
+        .into_any(),
+    }
+}
+
+fn spawn_timeline_fetch(
+    run_id: String,
+    timeline: RwSignal<Option<Result<api::RunTimeline, String>>>,
+) {
+    leptos::task::spawn_local_scoped_with_cancellation(async move {
+        let result = api::run_timeline(&run_id).await.map_err(|e| e.friendly());
+        timeline.set(Some(result));
+    });
+}
+
+fn spawn_runs_fetch(plan_id: String, runs_data: RwSignal<Option<Result<Vec<api::Run>, String>>>) {
+    leptos::task::spawn_local_scoped_with_cancellation(async move {
+        let result = api::list_plan_runs(&plan_id)
+            .await
+            .map_err(|e| e.friendly());
+        runs_data.set(Some(result));
+    });
+}
+
+fn render_run_timeline(
+    tl: &api::RunTimeline,
+    graph_data: RwSignal<Option<Result<PlanGraphBundle, String>>>,
+) -> AnyView {
+    if tl.steps.is_empty() && tl.notes.is_empty() {
+        return view! {
+            <p class="plan-run-timeline-empty">"No steps recorded yet."</p>
+        }
+        .into_any();
+    }
+
+    let steps: Vec<AnyView> = tl
+        .steps
+        .iter()
+        .map(|step| {
+            let task_id = step.task_id;
+            let started = format_ts(step.started_at);
+            let finished = step.finished_at.map(format_ts);
+            let outcome = step.outcome.clone();
+            let time_range = match finished {
+                Some(f) => format!("{started} → {f}"),
+                None => format!("{started} → …"),
+            };
+            view! {
+                <div class="plan-run-step">
+                    <span class="plan-run-step__task">
+                        {move || resolve_task_title(task_id, graph_data)}
+                    </span>
+                    <span class="plan-run-step__time">{time_range}</span>
+                    {outcome_badge(&outcome)}
+                </div>
+            }
+            .into_any()
+        })
+        .collect();
+
+    let notes: Vec<AnyView> = tl
+        .notes
+        .iter()
+        .map(|note| {
+            let meta = format!(
+                "{} · {}",
+                actor_label(&note.author),
+                format_ts(note.created_at)
+            );
+            let body = note.body.clone();
+            view! {
+                <div class="plan-run-note">
+                    <span class="plan-run-note__meta">{meta}</span>
+                    <p class="plan-run-note__body">{body}</p>
+                </div>
+            }
+            .into_any()
+        })
+        .collect();
+
+    view! {
+        <div class="plan-run-timeline-body">
+            <div class="plan-run-steps">{steps}</div>
+            { if notes.is_empty() {
+                view! { <></> }.into_any()
+            } else {
+                view! { <div class="plan-run-notes">{notes}</div> }.into_any()
+            }}
+        </div>
+    }
+    .into_any()
+}
+
+/// One run row: agent, status, started/last-activity — clicking it lazily
+/// fetches and expands the run's timeline (steps + notes).
+#[component]
+fn RunRowView(
+    run: api::Run,
+    graph_data: RwSignal<Option<Result<PlanGraphBundle, String>>>,
+    runs_refresh: RwSignal<u32>,
+) -> impl IntoView {
+    let expanded = RwSignal::new(false);
+    let timeline: RwSignal<Option<Result<api::RunTimeline, String>>> = RwSignal::new(None);
+    let run_id = run.id.to_string();
+
+    let on_toggle = {
+        let run_id = run_id.clone();
+        move |_: web_sys::MouseEvent| {
+            expanded.update(|v| *v = !*v);
+            if expanded.get_untracked() && timeline.get_untracked().is_none() {
+                spawn_timeline_fetch(run_id.clone(), timeline);
+            }
+        }
+    };
+
+    // Live refresh, same guard shape as the graph subpanel's effect.
+    Effect::new(move |_| {
+        runs_refresh.get();
+        if expanded.get_untracked() && timeline.get_untracked().is_some() {
+            spawn_timeline_fetch(run_id.clone(), timeline);
+        }
+    });
+
+    let agent = short_id(&run.agent_id.to_string());
+    let status = run.status;
+    let started = format_ts(run.started_at);
+    let last_activity = run.last_activity_at.map(format_ts);
+
+    view! {
+        <li class="plan-run-row-wrapper">
+            <div class="plan-run-row" on:click=on_toggle>
+                <span class=run_status_class(status)>{run_status_label(status)}</span>
+                <span class="plan-run-row__agent">{format!("agent #{agent}")}</span>
+                <span class="plan-run-row__started">{format!("started {started}")}</span>
+                { last_activity.map(|la| view! {
+                    <span class="plan-run-row__activity">{format!("last activity {la}")}</span>
+                })}
+            </div>
+            <Show when=move || expanded.get() fallback=|| view! { <></> }>
+                <div class="plan-run-timeline">
+                    {move || match timeline.get() {
+                        None => view! {
+                            <div class="plan-graph-loading">"loading timeline…"</div>
+                        }.into_any(),
+                        Some(Err(err)) => view! {
+                            <p class="fetch-error__message">{err}</p>
+                        }.into_any(),
+                        Some(Ok(tl)) => render_run_timeline(&tl, graph_data),
+                    }}
+                </div>
+            </Show>
+        </li>
+    }
+}
+
+fn render_plan_runs(
+    runs: Vec<api::Run>,
+    graph_data: RwSignal<Option<Result<PlanGraphBundle, String>>>,
+    runs_refresh: RwSignal<u32>,
+) -> AnyView {
+    if runs.is_empty() {
+        return view! {
+            <p class="plan-runs-empty">"No runs yet."</p>
+        }
+        .into_any();
+    }
+    let rows: Vec<AnyView> = runs
+        .into_iter()
+        .map(|run| {
+            view! {
+                <RunRowView run=run graph_data=graph_data runs_refresh=runs_refresh />
+            }
+            .into_any()
+        })
+        .collect();
+    view! {
+        <ul class="plan-runs-list">{rows}</ul>
+    }
+    .into_any()
+}
+
 // ── Treeview renderer ─────────────────────────────────────────────────────────
 //
 // Plain function (not #[component]) so it can recurse without type-system issues.
@@ -444,7 +724,12 @@ fn task_chip(node: &api::PlanGraphNode, is_critical: bool) -> AnyView {
 /// `Channel::Tasks` event; each row's graph subpanel (if open and already
 /// loaded once) silently refetches when it sees a bump. Threaded through
 /// the recursion like `depth`.
-fn plan_node_view(node: PlanTreeNode, depth: usize, graph_refresh: RwSignal<u32>) -> AnyView {
+fn plan_node_view(
+    node: PlanTreeNode,
+    depth: usize,
+    graph_refresh: RwSignal<u32>,
+    runs_refresh: RwSignal<u32>,
+) -> AnyView {
     let has_children = !node.children.is_empty();
     let plan = node.plan;
     let expanded = RwSignal::new(true);
@@ -453,7 +738,7 @@ fn plan_node_view(node: PlanTreeNode, depth: usize, graph_refresh: RwSignal<u32>
     let children_views: Vec<AnyView> = node
         .children
         .into_iter()
-        .map(|child| plan_node_view(child, depth + 1, graph_refresh))
+        .map(|child| plan_node_view(child, depth + 1, graph_refresh, runs_refresh))
         .collect();
 
     let title = plan.title.clone();
@@ -486,10 +771,34 @@ fn plan_node_view(node: PlanTreeNode, depth: usize, graph_refresh: RwSignal<u32>
     // already has data — refetch quietly. Guarded so this doesn't fire on
     // its own initial creation (both conditions are false until the user
     // has actually opened + loaded the panel at least once).
+    {
+        let plan_id = plan_id.clone();
+        Effect::new(move |_| {
+            graph_refresh.get();
+            if graph_open.get_untracked() && graph_data.get_untracked().is_some() {
+                spawn_graph_fetch(plan_id.clone(), graph_data);
+            }
+        });
+    }
+
+    // ── Runs subpanel state (lazy, fetched on first expand) ────────────────
+    let runs_open = RwSignal::new(false);
+    let runs_data: RwSignal<Option<Result<Vec<api::Run>, String>>> = RwSignal::new(None);
+
+    let on_runs_toggle = {
+        let plan_id = plan_id.clone();
+        move |_: web_sys::MouseEvent| {
+            runs_open.update(|v| *v = !*v);
+            if runs_open.get_untracked() && runs_data.get_untracked().is_none() {
+                spawn_runs_fetch(plan_id.clone(), runs_data);
+            }
+        }
+    };
+
     Effect::new(move |_| {
-        graph_refresh.get();
-        if graph_open.get_untracked() && graph_data.get_untracked().is_some() {
-            spawn_graph_fetch(plan_id.clone(), graph_data);
+        runs_refresh.get();
+        if runs_open.get_untracked() && runs_data.get_untracked().is_some() {
+            spawn_runs_fetch(plan_id.clone(), runs_data);
         }
     });
 
@@ -522,13 +831,22 @@ fn plan_node_view(node: PlanTreeNode, depth: usize, graph_refresh: RwSignal<u32>
                 <span class="plan-pct" title="success criteria count">
                     {format!("{criteria_count} sc")}
                 </span>
-                <button
-                    class="plan-graph-toggle"
-                    type="button"
-                    on:click=on_graph_toggle
-                >
-                    {move || if graph_open.get() { "graph ▴" } else { "graph ▾" }}
-                </button>
+                <div class="plan-row-toggles">
+                    <button
+                        class="plan-graph-toggle"
+                        type="button"
+                        on:click=on_graph_toggle
+                    >
+                        {move || if graph_open.get() { "graph ▴" } else { "graph ▾" }}
+                    </button>
+                    <button
+                        class="plan-graph-toggle"
+                        type="button"
+                        on:click=on_runs_toggle
+                    >
+                        {move || if runs_open.get() { "runs ▴" } else { "runs ▾" }}
+                    </button>
+                </div>
             </div>
             <Show when=move || graph_open.get() fallback=|| view! { <></> }>
                 <div class="plan-graph-panel">
@@ -540,6 +858,19 @@ fn plan_node_view(node: PlanTreeNode, depth: usize, graph_refresh: RwSignal<u32>
                             <p class="fetch-error__message">{err}</p>
                         }.into_any(),
                         Some(Ok(bundle)) => render_plan_graph(&bundle),
+                    }}
+                </div>
+            </Show>
+            <Show when=move || runs_open.get() fallback=|| view! { <></> }>
+                <div class="plan-graph-panel">
+                    {move || match runs_data.get() {
+                        None => view! {
+                            <div class="plan-graph-loading">"loading runs…"</div>
+                        }.into_any(),
+                        Some(Err(err)) => view! {
+                            <p class="fetch-error__message">{err}</p>
+                        }.into_any(),
+                        Some(Ok(runs)) => render_plan_runs(runs, graph_data, runs_refresh),
                     }}
                 </div>
             </Show>
@@ -695,6 +1026,29 @@ pub fn PlansPanel() -> impl IntoView {
         }
     });
 
+    // 4) Bump `runs_refresh` on any Channel::Runs event — covers run status,
+    // step progress, and note appends alike (see run.rs module docs in the
+    // vendored events crate), so a single watch suffices for both the runs
+    // list and every open run's timeline (see `plan_node_view`/`RunRowView`).
+    let runs_refresh: RwSignal<u32> = RwSignal::new(0);
+    let runs_applied_cursor: RwSignal<usize> = RwSignal::new(0);
+    Effect::new(move |_| {
+        let len = ws_events.with(|v| v.len());
+        let start = runs_applied_cursor.get_untracked();
+        if start >= len {
+            return;
+        }
+        let relevant = ws_events.with_untracked(|evs| {
+            evs[start..len]
+                .iter()
+                .any(|env: &EventEnvelope| env.payload.channel() == Channel::Runs)
+        });
+        runs_applied_cursor.set(len);
+        if relevant {
+            runs_refresh.update(|n| *n = n.wrapping_add(1));
+        }
+    });
+
     view! {
         {move || {
             match current_filter.get() {
@@ -729,7 +1083,7 @@ pub fn PlansPanel() -> impl IntoView {
                                                 );
                                                 let nodes: Vec<AnyView> = group_nodes
                                                     .into_iter()
-                                                    .map(|node| plan_node_view(node, 0, graph_refresh))
+                                                    .map(|node| plan_node_view(node, 0, graph_refresh, runs_refresh))
                                                     .collect();
                                                 view! {
                                                     <section class="plan-group">

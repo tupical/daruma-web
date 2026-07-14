@@ -8,13 +8,14 @@ use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 use daruma_domain::{Document, Plan, Project, Task};
 use daruma_events::EventEnvelope;
+use daruma_shared::TaskId;
 
 use crate::auth;
 
 pub use daruma_api_dto::PlanWithProgress;
 pub use daruma_domain::{
-    PlanFanoutWave, PlanGraph, PlanGraphEdge, PlanGraphNode, PlanProgressSummary, Relation,
-    TaskRelations,
+    PlanFanoutWave, PlanGraph, PlanGraphEdge, PlanGraphNode, PlanProgressSummary, Relation, Run,
+    RunNote, RunOutcome, RunStatus, TaskRelations,
 };
 
 // Empty = same-origin relative URLs. In dev (`trunk serve`), Trunk's [[proxy]]
@@ -164,6 +165,45 @@ pub async fn plan_fanout(plan_id: &str) -> Result<Vec<PlanFanoutWave>, ApiError>
 /// `GET /v1/plans/{id}/progress` — task-count summary + next-ready task.
 pub async fn plan_progress(plan_id: &str) -> Result<PlanProgressSummary, ApiError> {
     get_json(&format!("{API_BASE}/v1/plans/{plan_id}/progress")).await
+}
+
+// ── Run timeline (VIZ-6, run half) ──────────────────────────────────────────
+
+/// One step of a run — the execution of one task, projected server-side from
+/// `RunStepStarted`/`RunStepFinished`. Landed after the vendored
+/// `daruma_domain` pin (unlike `Run`/`RunNote`/`RunOutcome` below, which are
+/// already there and reused directly), so this is hand-rolled to match
+/// `GET /v1/runs/{id}/timeline`'s `steps` shape.
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct RunStep {
+    pub task_id: TaskId,
+    pub started_at: daruma_shared::time::Timestamp,
+    #[serde(default)]
+    pub finished_at: Option<daruma_shared::time::Timestamp>,
+    #[serde(default)]
+    pub outcome: Option<RunOutcome>,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct RunTimeline {
+    pub run: Run,
+    pub steps: Vec<RunStep>,
+    pub notes: Vec<RunNote>,
+}
+
+/// `GET /v1/plans/{id}/runs` — every run of a plan, oldest first.
+pub async fn list_plan_runs(plan_id: &str) -> Result<Vec<Run>, ApiError> {
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        runs: Vec<Run>,
+    }
+    let resp: Resp = get_json(&format!("{API_BASE}/v1/plans/{plan_id}/runs")).await?;
+    Ok(resp.runs)
+}
+
+/// `GET /v1/runs/{id}/timeline` — the run plus its ordered steps and notes.
+pub async fn run_timeline(run_id: &str) -> Result<RunTimeline, ApiError> {
+    get_json(&format!("{API_BASE}/v1/runs/{run_id}/timeline")).await
 }
 
 /// `GET /v1/plans/{id}` — returns plan + progress snapshot.
