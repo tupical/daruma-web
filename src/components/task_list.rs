@@ -127,6 +127,7 @@ fn task_from_event(env: &EventEnvelope, input: &NewTask) -> Option<Task> {
         updated_event_id: Some(env.id),
         updated_event_seq: Some(env.seq),
         source_event_id: None,
+        external_key: input.external_key.clone(),
     })
 }
 
