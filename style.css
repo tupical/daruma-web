@@ -706,6 +706,128 @@ h1 {
   /* layout driven by children's own --depth indent */
 }
 
+/* ── Plan dependency graph (VIZ-6, plan half) ────────────────────────────────── */
+
+.plan-graph-toggle {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0.15rem 0.5rem;
+  margin-left: 0.4rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+.plan-graph-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+.plan-graph-panel {
+  padding: 0.5rem 0.75rem 0.75rem calc(var(--depth, 0) * 1rem + 0.6rem);
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.plan-graph-loading,
+.plan-graph-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.plan-graph-summary {
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.plan-graph-waves {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.plan-graph-wave {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.plan-graph-wave__label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  min-width: 4.5rem;
+}
+
+.plan-graph-wave__tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.plan-graph-task-chip {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: help;
+}
+.plan-graph-task-chip--critical {
+  border-color: var(--p1);
+  color: var(--p1);
+}
+
+.plan-graph-nodes {
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-graph-node {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.plan-graph-node:last-child { border-bottom: none; }
+.plan-graph-node--critical { border-left: 2px solid var(--p1); padding-left: 0.4rem; }
+
+.plan-graph-node__pos {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.plan-graph-node__title {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-graph-node__deps {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.plan-graph-node__id {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 /* ── Documents panel ───────────────────────────────────────────────────────── */
 
 .documents-panel {
@@ -1575,6 +1697,23 @@ h1 {
   }
   .artifact-title {
     flex: 1 1 100%;
+  }
+
+  /* Plan dependency graph: wave label above its chips instead of a fixed
+     min-width label squeezing them; node rows drop title to its own line,
+     same treatment as task-row/artifact-row. */
+  .plan-graph-wave {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+  }
+  .plan-graph-node {
+    flex-wrap: wrap;
+    row-gap: 0.2rem;
+  }
+  .plan-graph-node__title {
+    flex: 1 1 100%;
+    order: -1;
   }
 
   /* Relation rows in the expanded task body: fixed 8rem label plus chips

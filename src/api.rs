@@ -12,7 +12,10 @@ use daruma_events::EventEnvelope;
 use crate::auth;
 
 pub use daruma_api_dto::PlanWithProgress;
-pub use daruma_domain::{Relation, TaskRelations};
+pub use daruma_domain::{
+    PlanFanoutWave, PlanGraph, PlanGraphEdge, PlanGraphNode, PlanProgressSummary, Relation,
+    TaskRelations,
+};
 
 // Empty = same-origin relative URLs. In dev (`trunk serve`), Trunk's [[proxy]]
 // in Trunk.toml forwards /v1/* to the local API on :8080.
@@ -141,6 +144,26 @@ pub async fn list_projects() -> Result<Vec<Project>, ApiError> {
 pub async fn list_plans(project_id: &str) -> Result<Vec<Plan>, ApiError> {
     let url = format!("{API_BASE}/v1/plans?project_id={project_id}&status={PLAN_LIST_STATUS}");
     get_json(&url).await
+}
+
+/// `GET /v1/plans/{id}/graph` — the plan's direct task list as a DAG:
+/// nodes carry `depends_on` + live `status`, edges are `depends_on` (plan-
+/// local ordering) or `blocks` (task relations) between plan members.
+pub async fn plan_graph(plan_id: &str) -> Result<PlanGraph, ApiError> {
+    get_json(&format!("{API_BASE}/v1/plans/{plan_id}/graph")).await
+}
+
+/// `GET /v1/plans/{id}/fanout` — parallel execution waves (topological
+/// levels) over the plan's not-yet-done tasks. Empty once nothing remains
+/// (including for a fully completed plan) — the graph above still shows the
+/// full shape in that case.
+pub async fn plan_fanout(plan_id: &str) -> Result<Vec<PlanFanoutWave>, ApiError> {
+    get_json(&format!("{API_BASE}/v1/plans/{plan_id}/fanout")).await
+}
+
+/// `GET /v1/plans/{id}/progress` — task-count summary + next-ready task.
+pub async fn plan_progress(plan_id: &str) -> Result<PlanProgressSummary, ApiError> {
+    get_json(&format!("{API_BASE}/v1/plans/{plan_id}/progress")).await
 }
 
 /// `GET /v1/plans/{id}` — returns plan + progress snapshot.
