@@ -1262,3 +1262,35 @@ h1 {
   font-size: 12px;
   opacity: 0.6;
 }
+
+/* Status bar — compact, read-only footer (WS state + API healthz). */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.status-bar__dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.status-bar__dot--open { background: var(--done); }
+.status-bar__dot--connecting,
+.status-bar__dot--catching-up { background: var(--p2); }
+.status-bar__dot--reconnecting { background: var(--p1); }
+.status-bar__dot--closed { background: var(--p0); }
+
+.status-bar__sep { opacity: 0.5; }
+
+.status-bar__lag { opacity: 0.8; }

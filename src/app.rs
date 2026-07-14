@@ -1,5 +1,6 @@
 use crate::components::{
-    ActivityFeed, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, TaskList, WorkspaceGraph,
+    ActivityFeed, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, StatusBar, TaskList,
+    WorkspaceGraph,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
@@ -41,6 +42,7 @@ fn GraphApp() -> impl IntoView {
             <main class="main main--graph">
                 <WorkspaceGraph />
             </main>
+            <StatusBar />
         </div>
     }
 }
@@ -58,6 +60,7 @@ fn ActivityApp() -> impl IntoView {
             <main class="main main--activity">
                 <ActivityFeed />
             </main>
+            <StatusBar />
         </div>
     }
 }
@@ -94,6 +97,7 @@ fn WorkspaceApp() -> impl IntoView {
                 <PlansPanel />
                 <DocumentsPanel />
             </aside>
+            <StatusBar />
         </div>
     }
 }

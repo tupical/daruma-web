@@ -169,6 +169,21 @@ pub async fn list_project_documents(project_id: &str) -> Result<Vec<Document>, A
     get_json(&url).await
 }
 
+// ── Healthz ──────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct HealthzInfo {
+    pub status: String,
+    pub version: String,
+    pub core_version: String,
+    pub api_version: String,
+}
+
+/// `GET /v1/healthz` — public, no auth required.
+pub async fn healthz() -> Result<HealthzInfo, ApiError> {
+    get_json(&format!("{API_BASE}/v1/healthz")).await
+}
+
 // ── WorkspaceGraph types ──────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, serde::Deserialize)]

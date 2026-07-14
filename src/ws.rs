@@ -1,6 +1,3 @@
-// Status / reconnect-counter fields are reserved for the future WS status indicator
-// (follow-up UI); silencing dead_code until a component consumes them.
-#![allow(dead_code)]
 //! WebSocket v2 client for `/v1/ws`.
 //!
 //! Provides a reactive stream of [`EventEnvelope`] events via Leptos signals.
@@ -57,7 +54,13 @@ pub enum WsStatus {
     Connecting,
     CatchingUp,
     Open,
-    Reconnecting { in_secs: u32 },
+    Reconnecting {
+        in_secs: u32,
+    },
+    // `connect_loop` retries forever (Connecting <-> Reconnecting), so this
+    // variant is never constructed today — kept for a future deliberate
+    // "give up" path and matched defensively by status_bar.rs.
+    #[allow(dead_code)]
     Closed,
 }
 
