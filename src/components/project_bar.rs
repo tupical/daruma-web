@@ -8,6 +8,7 @@ pub fn ProjectBar() -> impl IntoView {
     let projects = ctx.projects;
     let current_filter = ctx.current_filter;
     let workspace_slug = ctx.workspace_slug;
+    let projects_error = ctx.projects_error;
     let navigate = use_navigate();
 
     let select_filter = Callback::new(move |filter: ProjectFilter| {
@@ -17,6 +18,11 @@ pub fn ProjectBar() -> impl IntoView {
     });
 
     view! {
+        <Show when=move || projects_error.get().is_some() fallback=|| view! { <></> }>
+            <p class="fetch-error__message">
+                { move || projects_error.get().unwrap_or_default() }
+            </p>
+        </Show>
         <div class="project-bar">
             <button
                 type="button"

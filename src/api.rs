@@ -44,6 +44,26 @@ impl std::fmt::Display for ApiError {
     }
 }
 
+impl ApiError {
+    /// Short, actionable message for the panels to show in place of the raw
+    /// error — `Display` above is for logs/devtools, this is for end users.
+    pub fn friendly(&self) -> String {
+        match self {
+            ApiError::Status(401, _) | ApiError::Status(403, _) => {
+                "Not authorized — check your access token.".to_string()
+            }
+            ApiError::Status(code, _) if *code >= 500 => {
+                format!("Server error ({code}) — check the server URL, then try again.")
+            }
+            ApiError::Status(code, _) => format!("Request failed (HTTP {code})."),
+            ApiError::Network(_) => {
+                "Can't reach the server — check the server URL and your connection.".to_string()
+            }
+            ApiError::Decode(_) => "Unexpected response from the server.".to_string(),
+        }
+    }
+}
+
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /// Optionally attach bearer auth and always send same-origin cookies.

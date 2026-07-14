@@ -219,6 +219,31 @@ h1 {
   max-width: 720px;
 }
 
+.task-groups-empty {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-size: 12px;
+}
+
+.task-groups-caught-up {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.task-groups-error {
+  width: 100%;
+  max-width: 720px;
+}
+
+/* Actionable fetch-failure message — shared across task list / plans /
+   documents / project bar / activity feed, wherever a fetch can fail. */
+.fetch-error__message {
+  color: var(--p0);
+  font-size: 12px;
+  padding: 0.5rem 0;
+}
+
 .task-group {
   display: block;
   margin: 0 0 0.5rem 0;

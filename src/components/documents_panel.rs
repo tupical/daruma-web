@@ -96,6 +96,9 @@ pub fn DocumentsPanel() -> impl IntoView {
     let cache: RwSignal<HashMap<String, Vec<Document>>> = RwSignal::new(HashMap::new());
     let applied_cursor: RwSignal<usize> = RwSignal::new(0);
     let fetch_seq: RwSignal<HashMap<String, u64>> = RwSignal::new(HashMap::new());
+    // Most recent fetch failure for the current project, if any — see
+    // plans_panel.rs for the same pattern and rationale.
+    let fetch_error: RwSignal<Option<String>> = RwSignal::new(None);
 
     let docs: Memo<Vec<Document>> = Memo::new(move |_| {
         let Some(pid) = project_id_opt.get() else {
@@ -117,6 +120,10 @@ pub fn DocumentsPanel() -> impl IntoView {
         let Some(pid) = project_id_opt.get() else {
             return;
         };
+        // Clear before the cache-hit check below: `fetch_error` isn't keyed
+        // per-project, so a stale error from a previous failed project must
+        // not linger over a different project that's actually a cache hit.
+        fetch_error.set(None);
         if cache.with_untracked(|m| m.contains_key(&pid)) {
             return;
         }
@@ -130,7 +137,16 @@ pub fn DocumentsPanel() -> impl IntoView {
         // (`fetch_seq`) after the await, so a plain spawn would panic if the
         // route is disposed mid-fetch. See task_list.rs for the full rationale.
         leptos::task::spawn_local_scoped_with_cancellation(async move {
-            let mut ds = api::list_project_documents(&pid).await.unwrap_or_default();
+            let mut ds = match api::list_project_documents(&pid).await {
+                Ok(ds) => ds,
+                Err(err) => {
+                    leptos::logging::log!(
+                        "list_project_documents failed for project={pid}: {err:?}"
+                    );
+                    fetch_error.set(Some(err.friendly()));
+                    Vec::new()
+                }
+            };
             ws_events.with_untracked(|evs| {
                 let now_len = evs.len();
                 if snapshot_at < now_len {
@@ -186,7 +202,11 @@ pub fn DocumentsPanel() -> impl IntoView {
                         >
                             {move || {
                                 let ds = docs.get();
-                                if ds.is_empty() {
+                                if let Some(err) = fetch_error.get() {
+                                    view! {
+                                        <p class="fetch-error__message">{err}</p>
+                                    }.into_any()
+                                } else if ds.is_empty() {
                                     view! {
                                         <p class="documents-empty">"No documents yet."</p>
                                     }.into_any()

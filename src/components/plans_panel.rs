@@ -258,6 +258,10 @@ pub fn PlansPanel() -> impl IntoView {
     let cache: RwSignal<HashMap<String, Vec<Plan>>> = RwSignal::new(HashMap::new());
     let applied_cursor: RwSignal<usize> = RwSignal::new(0);
     let fetch_seq: RwSignal<HashMap<String, u64>> = RwSignal::new(HashMap::new());
+    // Most recent fetch failure for the current project, if any — the fetch
+    // below still caches an empty Vec on failure (unchanged behavior), this
+    // just remembers *why* so the view can show it instead of "No plans yet."
+    let fetch_error: RwSignal<Option<String>> = RwSignal::new(None);
 
     let plans: Memo<Vec<Plan>> = Memo::new(move |_| {
         let Some(pid) = project_id_opt.get() else {
@@ -279,6 +283,10 @@ pub fn PlansPanel() -> impl IntoView {
         let Some(pid) = project_id_opt.get() else {
             return;
         };
+        // Clear before the cache-hit check below: `fetch_error` isn't keyed
+        // per-project, so a stale error from a previous failed project must
+        // not linger over a different project that's actually a cache hit.
+        fetch_error.set(None);
         if cache.with_untracked(|m| m.contains_key(&pid)) {
             return;
         }
@@ -292,7 +300,14 @@ pub fn PlansPanel() -> impl IntoView {
         // (`fetch_seq`) after the await, so a plain spawn would panic if the
         // route is disposed mid-fetch. See task_list.rs for the full rationale.
         leptos::task::spawn_local_scoped_with_cancellation(async move {
-            let mut ps = api::list_plans(&pid).await.unwrap_or_default();
+            let mut ps = match api::list_plans(&pid).await {
+                Ok(ps) => ps,
+                Err(err) => {
+                    leptos::logging::log!("list_plans failed for project={pid}: {err:?}");
+                    fetch_error.set(Some(err.friendly()));
+                    Vec::new()
+                }
+            };
             // Catch up to events that arrived during the in-flight fetch.
             ws_events.with_untracked(|evs| {
                 let now_len = evs.len();
@@ -348,7 +363,11 @@ pub fn PlansPanel() -> impl IntoView {
                             >
                                 {move || {
                                     let ps = plans.get();
-                                    if ps.is_empty() {
+                                    if let Some(err) = fetch_error.get() {
+                                        view! {
+                                            <p class="fetch-error__message">{err}</p>
+                                        }.into_any()
+                                    } else if ps.is_empty() {
                                         view! {
                                             <p class="plans-empty">"No plans yet."</p>
                                         }.into_any()

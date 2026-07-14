@@ -264,6 +264,11 @@ pub fn TaskList() -> impl IntoView {
     // Per-key fetch generation — drops stale results when the same key is
     // refetched concurrently (e.g. A → B → A in quick succession).
     let fetch_seq: RwSignal<HashMap<String, u64>> = RwSignal::new(HashMap::new());
+    // Most recent fetch failure for the current key, if any — cleared when a
+    // new fetch starts. Lets the view show an actionable message instead of
+    // spinning on the skeleton forever (a failed fetch never writes `cache`,
+    // so `loaded` alone can't distinguish "still loading" from "gave up").
+    let fetch_error: RwSignal<Option<String>> = RwSignal::new(None);
 
     let current_key = Memo::new(move |_| filter_key(&filter.get()));
 
@@ -285,6 +290,10 @@ pub fn TaskList() -> impl IntoView {
     // handle reconnects), so re-visiting a project is a pure local switch.
     Effect::new(move |_| {
         let key = current_key.get();
+        // Clear before the cache-hit check below: `fetch_error` isn't keyed
+        // per-filter, so a stale error from a previous failed filter must not
+        // linger over a different filter that's actually a cache hit.
+        fetch_error.set(None);
         // Cache hit → trust the WS-applied snapshot, no HTTP.
         if cache.with_untracked(|m| m.contains_key(&key)) {
             return;
@@ -316,6 +325,7 @@ pub fn TaskList() -> impl IntoView {
                 Ok(ts) => ts,
                 Err(err) => {
                     leptos::logging::log!("list_tasks failed for filter={:?}: {:?}", f, err);
+                    fetch_error.set(Some(err.friendly()));
                     return;
                 }
             };
@@ -407,76 +417,98 @@ pub fn TaskList() -> impl IntoView {
     });
 
     view! {
-        <Show
-            when=move || loaded.get()
-            fallback=|| view! {
-                <div class="task-groups skeleton">
-                    <section class="task-group">
-                        <div class="task-group__header skeleton-header">
-                            <span class="skeleton-bar skeleton-bar--header"></span>
-                        </div>
-                        <ul class="task-list">
-                            { (0..6).map(|_| view! {
-                                <li class="task-row-wrapper">
-                                    <div class="task-row skeleton-row">
-                                        <span class="skeleton-bar skeleton-bar--priority"></span>
-                                        <span class="skeleton-bar skeleton-bar--id"></span>
-                                        <span class="skeleton-bar skeleton-bar--title"></span>
-                                        <span class="skeleton-bar skeleton-bar--status"></span>
-                                    </div>
-                                </li>
-                            }).collect_view() }
-                        </ul>
-                    </section>
-                </div>
-            }
-        >
-            <div class="task-groups">
-                { move || groups.get().into_iter().map(|(status, items)| {
-                    let count = items.len();
-                    let slug = group_slug(status);
-                    let is_collapsed = move || collapsed.get().contains(slug);
-                    let toggle = move |_| {
-                        collapsed.update(|set| {
-                            if !set.insert(slug) { set.remove(slug); }
-                        });
-                    };
-                    let header_class = move || {
-                        format!(
-                            "task-group__header task-group__header--{}{}",
-                            slug,
-                            if is_collapsed() { " collapsed" } else { "" },
-                        )
-                    };
-                    view! {
+        {move || {
+            if let Some(err) = fetch_error.get() {
+                view! {
+                    <div class="task-groups-error">
+                        <p class="fetch-error__message">{err}</p>
+                    </div>
+                }.into_any()
+            } else if !loaded.get() {
+                view! {
+                    <div class="task-groups skeleton">
                         <section class="task-group">
-                            <button
-                                class=header_class
-                                type="button"
-                                on:click=toggle
-                                aria-expanded=move || (!is_collapsed()).to_string()
-                            >
-                                <span class="task-group__toggle">
-                                    { move || if is_collapsed() { "▸" } else { "▾" } }
-                                </span>
-                                <span class="task-group__label">{ group_label(status) }</span>
-                                <span class="task-group__count">{ count }</span>
-                            </button>
-                            <Show when=move || !is_collapsed() fallback=|| view! { <></> }>
-                                <ul class="task-list">
-                                    <For
-                                        each={ let items = items.clone(); move || items.clone() }
-                                        key=|t: &Task| t.id
-                                        let:task
-                                    >
-                                        <TaskRow task=task />
-                                    </For>
-                                </ul>
-                            </Show>
+                            <div class="task-group__header skeleton-header">
+                                <span class="skeleton-bar skeleton-bar--header"></span>
+                            </div>
+                            <ul class="task-list">
+                                { (0..6).map(|_| view! {
+                                    <li class="task-row-wrapper">
+                                        <div class="task-row skeleton-row">
+                                            <span class="skeleton-bar skeleton-bar--priority"></span>
+                                            <span class="skeleton-bar skeleton-bar--id"></span>
+                                            <span class="skeleton-bar skeleton-bar--title"></span>
+                                            <span class="skeleton-bar skeleton-bar--status"></span>
+                                        </div>
+                                    </li>
+                                }).collect_view() }
+                            </ul>
                         </section>
-                    }
-                }).collect_view() }
-            </div>
-        </Show>
+                    </div>
+                }.into_any()
+            } else {
+                let gs = groups.get();
+                if gs.is_empty() {
+                    view! {
+                        <div class="task-groups-empty">"No tasks yet."</div>
+                    }.into_any()
+                } else {
+                    let all_done = gs
+                        .iter()
+                        .all(|(s, _)| matches!(s, Status::Done | Status::Cancelled));
+                    view! {
+                        <div class="task-groups">
+                            <Show when=move || all_done fallback=|| view! { <></> }>
+                                <p class="task-groups-caught-up">"All tasks done."</p>
+                            </Show>
+                            { gs.into_iter().map(|(status, items)| {
+                                let count = items.len();
+                                let slug = group_slug(status);
+                                let is_collapsed = move || collapsed.get().contains(slug);
+                                let toggle = move |_| {
+                                    collapsed.update(|set| {
+                                        if !set.insert(slug) { set.remove(slug); }
+                                    });
+                                };
+                                let header_class = move || {
+                                    format!(
+                                        "task-group__header task-group__header--{}{}",
+                                        slug,
+                                        if is_collapsed() { " collapsed" } else { "" },
+                                    )
+                                };
+                                view! {
+                                    <section class="task-group">
+                                        <button
+                                            class=header_class
+                                            type="button"
+                                            on:click=toggle
+                                            aria-expanded=move || (!is_collapsed()).to_string()
+                                        >
+                                            <span class="task-group__toggle">
+                                                { move || if is_collapsed() { "▸" } else { "▾" } }
+                                            </span>
+                                            <span class="task-group__label">{ group_label(status) }</span>
+                                            <span class="task-group__count">{ count }</span>
+                                        </button>
+                                        <Show when=move || !is_collapsed() fallback=|| view! { <></> }>
+                                            <ul class="task-list">
+                                                <For
+                                                    each={ let items = items.clone(); move || items.clone() }
+                                                    key=|t: &Task| t.id
+                                                    let:task
+                                                >
+                                                    <TaskRow task=task />
+                                                </For>
+                                            </ul>
+                                        </Show>
+                                    </section>
+                                }
+                            }).collect_view() }
+                        </div>
+                    }.into_any()
+                }
+            }
+        }}
     }
 }

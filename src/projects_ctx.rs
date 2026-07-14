@@ -19,6 +19,10 @@ pub struct ProjectsCtx {
     pub names: Memo<HashMap<ProjectId, String>>,
     pub workspace_slug: ReadSignal<String>,
     pub current_filter: RwSignal<ProjectFilter>,
+    /// Set when the initial `GET /v1/projects` fails; cleared on success.
+    /// `projects` stays empty in that case, so this is what lets the UI tell
+    /// "fresh install, no projects yet" apart from "couldn't load projects".
+    pub projects_error: RwSignal<Option<String>>,
 }
 
 fn current_path_segments() -> Vec<String> {
@@ -149,6 +153,7 @@ pub fn init_projects_ctx() -> ProjectsCtx {
     let workspace_slug = RwSignal::new(parse_workspace_slug_from_path()).read_only();
     let initial_segment = parse_project_segment_from_path();
     let current_filter = RwSignal::new(resolve_filter(&initial_segment, &[]));
+    let projects_error: RwSignal<Option<String>> = RwSignal::new(None);
 
     wasm_bindgen_futures::spawn_local(async move {
         match crate::api::list_projects().await {
@@ -156,7 +161,10 @@ pub fn init_projects_ctx() -> ProjectsCtx {
                 set_projects.set(ps.clone());
                 current_filter.set(resolve_filter(&initial_segment, &ps));
             }
-            Err(e) => leptos::logging::log!("list_projects failed: {:?}", e),
+            Err(e) => {
+                leptos::logging::log!("list_projects failed: {:?}", e);
+                projects_error.set(Some(e.friendly()));
+            }
         }
     });
 
@@ -182,6 +190,7 @@ pub fn init_projects_ctx() -> ProjectsCtx {
         names,
         workspace_slug,
         current_filter,
+        projects_error,
     }
 }
 

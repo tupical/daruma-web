@@ -520,6 +520,9 @@ pub fn ActivityFeed() -> impl IntoView {
     let history_loading: RwSignal<bool> = RwSignal::new(false);
     // Extra historical events fetched via api::events_since, prepended.
     let history_events: RwSignal<Vec<EventEnvelope>> = RwSignal::new(Vec::new());
+    // Most recent "load older" failure, if any — shown next to the button
+    // instead of just silently giving up.
+    let history_error: RwSignal<Option<String>> = RwSignal::new(None);
 
     // ── "N new" chip ─────────────────────────────────────────────────────────
     // Count of events that arrived while user was scrolled away from bottom.
@@ -614,6 +617,7 @@ pub fn ActivityFeed() -> impl IntoView {
             return;
         }
         history_loading.set(true);
+        history_error.set(None);
 
         // Find the oldest seq we have (history first, then live).
         let oldest_seq = history_events
@@ -650,6 +654,7 @@ pub fn ActivityFeed() -> impl IntoView {
                 }
                 Err(e) => {
                     leptos::logging::warn!("[activity] load_older failed: {e}");
+                    history_error.set(Some(e.friendly()));
                     history_loaded.set(true); // stop retrying on error
                 }
             }
@@ -865,6 +870,15 @@ pub fn ActivityFeed() -> impl IntoView {
                             { move || if history_loading.get() { "Loading…" } else { "Load older" } }
                         </button>
                     </div>
+                </Show>
+
+                // `load_older` gives up after one failure (sets `history_loaded`
+                // to stop retrying), so the error has to survive outside that
+                // Show's condition or it would vanish along with the button.
+                <Show when=move || history_error.get().is_some() fallback=|| ()>
+                    <p class="fetch-error__message">
+                        { move || history_error.get().unwrap_or_default() }
+                    </p>
                 </Show>
             </div>
 
