@@ -48,7 +48,11 @@ impl std::fmt::Display for ApiError {
 
 /// Optionally attach bearer auth and always send same-origin cookies.
 fn with_auth(builder: gloo_net::http::RequestBuilder) -> gloo_net::http::RequestBuilder {
-    let builder = builder.credentials(web_sys::RequestCredentials::Include);
+    let builder = builder
+        .credentials(web_sys::RequestCredentials::Include)
+        // Server rejects /v1/* without the plugin-contract version; the cookie
+        // exemption covers only the hosted-app flow, not PAT bearer auth.
+        .header("X-Daruma-Plugin-Contract", "1");
     match auth::current() {
         Some(token) => builder.header("Authorization", &format!("Bearer {token}")),
         None => builder,
