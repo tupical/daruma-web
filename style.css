@@ -1057,9 +1057,77 @@ h1 {
   border-radius: 999px;
 }
 
+.document-card__freshness {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .document-card__body {
   padding: 0.5rem 0.75rem 0.75rem;
   border-top: 1px dashed var(--border);
+}
+
+.document-card__mode {
+  display: block;
+  margin: 0 0 0.5rem auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.document-card__narrative {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.narrative-block {
+  padding-left: 0.65rem;
+  border-left: 2px solid var(--border);
+}
+
+.narrative-block__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.narrative-block__author { color: var(--text); }
+.narrative-block__time { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.actor-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.narrative-block__body {
+  margin-top: 0.35rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.narrative-ref {
+  color: var(--accent);
+  font-family: 'Cascadia Code', 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 11px;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
 }
 
 /* Raw markdown view — `<pre>` preserves whitespace; word-wrap so very long

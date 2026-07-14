@@ -263,6 +263,9 @@ pub fn WorkspaceGraph() -> impl IntoView {
 
     // Selected node for the details panel.
     let selected_node: RwSignal<Option<GraphNode>> = RwSignal::new(None);
+    let requested_node = web_sys::window()
+        .and_then(|w| w.location().search().ok())
+        .and_then(|q| crate::auth::query_param(&q, "node"));
 
     // Impact mode: highlighted node ids.
     let impact_ids: RwSignal<HashSet<String>> = RwSignal::new(HashSet::new());
@@ -304,11 +307,18 @@ pub fn WorkspaceGraph() -> impl IntoView {
 
         // Mark done before spawning so a second effect-fire won't double-fetch.
         bootstrap_done.set(true);
+        let requested_node = requested_node.clone();
 
         spawn_local(async move {
             loading.set(true);
             match fetch_full_neighborhood(project_source_ids).await {
                 Some(nb) if !nb.nodes.is_empty() => {
+                    if let Some(node) = requested_node
+                        .as_ref()
+                        .and_then(|id| nb.nodes.iter().find(|node| &node.id == id))
+                    {
+                        selected_node.set(Some(node.clone()));
+                    }
                     init_positions(&nb, positions);
                     neighborhood.set(Some(nb));
                     loading.set(false);

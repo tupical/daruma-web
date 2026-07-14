@@ -255,7 +255,7 @@ fn session_storage() -> Result<web_sys::Storage, String> {
         .ok_or_else(|| "sessionStorage unavailable".to_string())
 }
 
-fn query_param(search: &str, name: &str) -> Option<String> {
+pub(crate) fn query_param(search: &str, name: &str) -> Option<String> {
     let s = search.trim_start_matches('?');
     for pair in s.split('&') {
         let mut parts = pair.splitn(2, '=');

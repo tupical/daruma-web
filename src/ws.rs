@@ -232,6 +232,7 @@ async fn run_session(
     store.set_conn_state(ConnState::CatchingUp);
 
     let mut cursor = catchup_from;
+    let mut catchup = Vec::new();
     loop {
         match api::events_since(cursor, CATCHUP_PAGE_SIZE).await {
             Ok(page) => {
@@ -239,12 +240,7 @@ async fn run_session(
                 if let Some(last) = page.last() {
                     cursor = last.seq;
                 }
-                if !page.is_empty() {
-                    let max_seq = page.iter().map(|e| e.seq).max().unwrap_or(0);
-                    events_w.update(|v| v.extend(page.clone()));
-                    seq_w.update(|s| *s = (*s).max(max_seq));
-                    store.push_batch(page);
-                }
+                catchup.extend(page);
                 if done {
                     break;
                 }
@@ -254,6 +250,12 @@ async fn run_session(
                 break;
             }
         }
+    }
+    if !catchup.is_empty() {
+        let max_seq = catchup.iter().map(|e| e.seq).max().unwrap_or(0);
+        events_w.update(|v| v.extend(catchup.clone()));
+        seq_w.update(|s| *s = (*s).max(max_seq));
+        store.push_batch(catchup);
     }
 
     // 3. Send Subscribe to all 11 channels.

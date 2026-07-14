@@ -45,7 +45,8 @@ async fn poll_once(
     }
     if let Ok(status) = api::workspacegraph_status().await {
         if let Some(last) = status.last_event_seq {
-            graph_lag.set(Some(server_seq.get_untracked() as i64 - last as i64));
+            let seq = server_seq.get_untracked();
+            graph_lag.set((seq >= last).then_some((seq - last) as i64));
         }
     }
 }
