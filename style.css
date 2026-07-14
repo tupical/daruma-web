@@ -1291,6 +1291,7 @@ h1 {
 /* Status bar — compact, read-only footer (WS state + API healthz). */
 .status-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
   width: 100%;
@@ -1319,3 +1320,105 @@ h1 {
 .status-bar__sep { opacity: 0.5; }
 
 .status-bar__lag { opacity: 0.8; }
+
+/* ── Mobile (phones, narrow windows) ─────────────────────────────────────────
+   Single breakpoint — the app is already a single narrow column (max-width:
+   720px) with no side-by-side panels to un-stack; what actually breaks on a
+   phone is horizontal crowding inside individual rows (task/plan rows pack
+   5-6 fixed-width badges into one line) and small tap targets. 640px covers
+   phones in portrait and narrow windows without adding a second breakpoint
+   for marginal gain in what's a compact internal tool, not a marketing site. */
+@media (max-width: 640px) {
+  body {
+    padding: 1rem 0.6rem;
+  }
+
+  /* Header: title + host-shell nav no longer fight for one line. */
+  .header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .viewer-title {
+    margin-bottom: 0;
+  }
+
+  .host-shell-nav {
+    max-width: 100%;
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  /* Project bar tabs — bigger tap targets. */
+  .project-bar .tab {
+    padding: 0.45rem 0.85rem;
+  }
+
+  /* Task rows: title drops to its own full-width line (still ellipsized),
+     badges wrap to the line below instead of being crushed sideways. */
+  .task-row {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+  }
+  .task-row .title {
+    flex: 1 1 100%;
+  }
+
+  .task-group__header {
+    padding: 0.55rem 0.6rem;
+  }
+
+  /* Plan rows: chevron+title on line 1, status+progress on line 2. */
+  .plan-tree-row {
+    grid-template-columns: 1.2rem 1fr auto;
+    grid-template-areas:
+      "chev  title  title"
+      "chev  status pct";
+    row-gap: 0.3rem;
+    column-gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+  }
+  .plan-chevron { grid-area: chev; padding: 0.15rem; font-size: 11px; }
+  .plan-title   { grid-area: title; }
+  .plan-status  { grid-area: status; justify-self: start; }
+  .plan-pct     { grid-area: pct; justify-self: end; }
+
+  .document-card__header {
+    padding: 0.55rem 0.6rem;
+  }
+
+  /* Relation rows in the expanded task body: fixed 8rem label plus chips
+     is too tight under ~350px of content width — stack instead. */
+  .relation-group {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+  .relation-label {
+    flex: 0 0 auto;
+  }
+
+  /* Activity feed: header wraps instead of forcing the filter toggle off
+     the right edge (title + a long "offline (retry in Ns)" badge alone can
+     exceed ~320px); the summary drops to its own full-width line below
+     time/actor/channel instead of squeezing into whatever sliver is left
+     (which otherwise breaks long words mid-letter); filter toggle gets a
+     bigger tap target. */
+  .feed-header {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+  .feed-entry {
+    flex-wrap: wrap;
+    row-gap: 0.15rem;
+  }
+  .feed-entry__summary {
+    flex: 1 1 100%;
+  }
+  .feed-filter-toggle {
+    padding: 0.35rem 0.7rem;
+  }
+  .feed-load-older-btn {
+    padding: 0.5rem 1rem;
+  }
+}
