@@ -14,12 +14,15 @@ pub fn App() -> impl IntoView {
             <Routes fallback=|| view! { <WorkspaceApp /> }>
                 <Route path=path!("/graph") view=GraphApp />
                 <Route path=path!("/activity") view=ActivityApp />
-                <Route path=path!("/:workspace/:project") view=WorkspaceApp />
-                <Route path=path!("/:workspace") view=WorkspaceApp />
+                // `:project?` folds the 1- and 2-segment forms into a single
+                // route match (same RouteMatchId), so switching between
+                // `/{ws}` and `/{ws}/{proj}` only updates params instead of
+                // tearing down and recreating WorkspaceApp's owner (the
+                // nested router's rebuild diffs matches by id and only
+                // replaces the subtree when the id changes).
+                <Route path=path!("/:workspace/:project?") view=WorkspaceApp />
                 <Route path=path!("/") view=WorkspaceApp />
-                <Route path=path!("/app") view=WorkspaceApp />
-                <Route path=path!("/app/") view=WorkspaceApp />
-                <Route path=path!("/app/:project") view=WorkspaceApp />
+                <Route path=path!("/app/:project?") view=WorkspaceApp />
             </Routes>
         </Router>
     }
