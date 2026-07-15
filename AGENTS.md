@@ -57,3 +57,16 @@ ad-hoc markdown.
 anything that must survive the session (multi-step refactors,
 cross-session work, decomposition output) goes into daruma when it is
 available.
+
+## Документация — свод правил
+
+Ведение документации подчиняется общему своду правил семейства MeiSei/MCPBox.
+
+**Канон:** `meisei.ru/docs/docs-governance.md` (сайт: https://meisei.ru/docs/#/docs-governance).
+
+Кратко: каждая управляемая страница несёт обязательные metadata
+(`audience/intent/owner/status/source_of_truth/last_verified`); один факт — один
+`source_of_truth` (ссылки, не копии); один раздел — одно намерение (Diátaxis);
+изменение поведения продукта включает docs-правку в том же PR. Профиль (S–XL) и
+полный контракт — в каноне. Проверка: `docs_frontmatter.py check` (CI) или
+`mcpbox_docs_assess`.
