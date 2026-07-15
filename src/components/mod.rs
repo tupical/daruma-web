@@ -1,4 +1,5 @@
 pub mod activity_feed;
+pub mod agent_ops_panel;
 pub mod artifacts_panel;
 pub mod documents_panel;
 pub mod host_shell_nav;
@@ -10,6 +11,7 @@ pub mod task_row;
 pub mod workspace_graph;
 
 pub use activity_feed::ActivityFeed;
+pub use agent_ops_panel::AgentOpsPanel;
 pub use artifacts_panel::ArtifactsPanel;
 pub use documents_panel::DocumentsPanel;
 pub use host_shell_nav::HostShellNav;

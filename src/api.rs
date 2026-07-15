@@ -4,18 +4,19 @@
 //! attaches `Authorization: Bearer …` when [`crate::auth::current`] returns
 //! a token.
 
-use gloo_net::http::Request;
-use serde::{Deserialize, Serialize};
 use daruma_domain::{Document, Plan, Project, Task};
 use daruma_events::EventEnvelope;
 use daruma_shared::TaskId;
+use gloo_net::http::Request;
+use serde::{Deserialize, Serialize};
 
 use crate::auth;
 
 pub use daruma_api_dto::PlanWithProgress;
 pub use daruma_domain::{
-    PlanFanoutWave, PlanGraph, PlanGraphEdge, PlanGraphNode, PlanProgressSummary, Relation, Run,
-    RunNote, RunOutcome, RunStatus, TaskRelations,
+    AgentSession, LeaseMode, PlanFanoutWave, PlanGraph, PlanGraphEdge, PlanGraphNode,
+    PlanProgressSummary, Relation, Run, RunNote, RunOutcome, RunStatus, TaskRelations, WorkLease,
+    WorkUnit, WorkUnitStatus,
 };
 
 // Empty = same-origin relative URLs. In dev (`trunk serve`), Trunk's [[proxy]]
@@ -471,6 +472,84 @@ pub async fn artifact_impact(id: &str, limit: Option<u32>) -> Result<GraphNeighb
         url.push_str(&format!("?limit={l}"));
     }
     get_json(&url).await
+}
+
+// ── Agent Operations (VIZ-5) ───────────────────────────────────────────────────
+
+/// A live task claim (agent → task lock) as surfaced by the Agent Operations
+/// read layer. Mirrors the server's `ActiveClaim` row, which lives in the
+/// storage crate (not a dependency here), so it's hand-rolled to match the
+/// `GET /v1/claims` `claims` shape. Ids serialize as bare UUID strings.
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct AgentClaim {
+    pub agent_id: String,
+    pub task_id: String,
+    pub acquired_at: daruma_shared::time::Timestamp,
+    pub expires_at: daruma_shared::time::Timestamp,
+}
+
+/// `GET /v1/sessions/active` — agent sessions with no `ended_at`: the set of
+/// agents currently working. Not project-scoped (sessions carry no project id).
+pub async fn list_active_sessions() -> Result<Vec<AgentSession>, ApiError> {
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        sessions: Vec<AgentSession>,
+    }
+    let resp: Resp = get_json(&format!("{API_BASE}/v1/sessions/active")).await?;
+    Ok(resp.sessions)
+}
+
+/// `GET /v1/claims[?project_id=…]` — live (non-expired) task claims, optionally
+/// scoped to a project. Released claims are deleted and expired ones swept, so
+/// this is "who holds what right now".
+pub async fn list_active_claims(project_id: Option<&str>) -> Result<Vec<AgentClaim>, ApiError> {
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        claims: Vec<AgentClaim>,
+    }
+    let mut url = format!("{API_BASE}/v1/claims");
+    if let Some(pid) = project_id {
+        url.push_str(&format!("?project_id={}", urlencoding_simple(pid)));
+    }
+    let resp: Resp = get_json(&url).await?;
+    Ok(resp.claims)
+}
+
+/// `GET /v1/leases[?project_id=…]` — active (non-expired) work leases: reserved
+/// resources with their fencing token, mode and TTL. Optionally project-scoped.
+pub async fn list_active_leases(project_id: Option<&str>) -> Result<Vec<WorkLease>, ApiError> {
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        leases: Vec<WorkLease>,
+    }
+    let mut url = format!("{API_BASE}/v1/leases");
+    if let Some(pid) = project_id {
+        url.push_str(&format!("?project_id={}", urlencoding_simple(pid)));
+    }
+    let resp: Resp = get_json(&url).await?;
+    Ok(resp.leases)
+}
+
+/// `GET /v1/work-units?project_id=…[&status=…]` — the project-wide work-unit
+/// queue: what's queued, who took what. Terminal units are included unless
+/// narrowed with `status`. `project_id` is required by the endpoint.
+pub async fn list_project_work_units(
+    project_id: &str,
+    status: Option<&str>,
+) -> Result<Vec<WorkUnit>, ApiError> {
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        work_units: Vec<WorkUnit>,
+    }
+    let mut url = format!(
+        "{API_BASE}/v1/work-units?project_id={}",
+        urlencoding_simple(project_id)
+    );
+    if let Some(s) = status {
+        url.push_str(&format!("&status={}", urlencoding_simple(s)));
+    }
+    let resp: Resp = get_json(&url).await?;
+    Ok(resp.work_units)
 }
 
 // ── Event history ─────────────────────────────────────────────────────────────

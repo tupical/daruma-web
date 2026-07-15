@@ -1,6 +1,6 @@
 use crate::components::{
-    ActivityFeed, ArtifactsPanel, DocumentsPanel, HostShellNav, PlansPanel, ProjectBar, StatusBar,
-    TaskList, WorkspaceGraph,
+    ActivityFeed, AgentOpsPanel, ArtifactsPanel, DocumentsPanel, HostShellNav, PlansPanel,
+    ProjectBar, StatusBar, TaskList, WorkspaceGraph,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
@@ -15,6 +15,7 @@ pub fn App() -> impl IntoView {
             <Routes fallback=|| view! { <WorkspaceApp /> }>
                 <Route path=path!("/graph") view=GraphApp />
                 <Route path=path!("/activity") view=ActivityApp />
+                <Route path=path!("/agent-ops") view=AgentOpsApp />
                 // `:project?` folds the 1- and 2-segment forms into a single
                 // route match (same RouteMatchId), so switching between
                 // `/{ws}` and `/{ws}/{proj}` only updates params instead of
@@ -59,6 +60,25 @@ fn ActivityApp() -> impl IntoView {
             </div>
             <main class="main main--activity">
                 <ActivityFeed />
+            </main>
+            <StatusBar />
+        </div>
+    }
+}
+
+#[component]
+fn AgentOpsApp() -> impl IntoView {
+    view! {
+        <div class="app app--agent-ops">
+            <div class="header">
+                <div class="header-row">
+                    <div class="viewer-title">"Daruma OSS Viewer"</div>
+                    <HostShellNav />
+                </div>
+                <ProjectBar />
+            </div>
+            <main class="main main--agent-ops">
+                <AgentOpsPanel />
             </main>
             <StatusBar />
         </div>
