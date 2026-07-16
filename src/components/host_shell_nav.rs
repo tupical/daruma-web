@@ -19,10 +19,12 @@ pub fn HostShellNav() -> impl IntoView {
 
     let on_graph = move |_| navigate_to("/graph");
     let on_activity = move |_| navigate_to("/activity");
+    let on_agent_ops = move |_| navigate_to("/agent-ops");
     let on_tasks = move |_| navigate_to("/");
 
     let is_graph = move || current_path().starts_with("/graph");
     let is_activity = move || current_path().starts_with("/activity");
+    let is_agent_ops = move || current_path().starts_with("/agent-ops");
 
     view! {
         <div class="host-shell-nav">
@@ -50,7 +52,18 @@ pub fn HostShellNav() -> impl IntoView {
                 "Activity"
             </button>
             <button
-                class=move || if !is_graph() && !is_activity() {
+                class=move || if is_agent_ops() {
+                    "host-shell-nav__link host-shell-nav__link--active"
+                } else {
+                    "host-shell-nav__link"
+                }
+                type="button"
+                on:click=on_agent_ops
+            >
+                "Agent Ops"
+            </button>
+            <button
+                class=move || if !is_graph() && !is_activity() && !is_agent_ops() {
                     "host-shell-nav__link host-shell-nav__link--active"
                 } else {
                     "host-shell-nav__link"
