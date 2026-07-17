@@ -1155,6 +1155,59 @@ h1 {
   padding: 0.25rem 0 0.5rem;
 }
 
+/* ── Project settings panel ──────────────────────────────────────────────────── */
+
+.project-settings-panel {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 2rem;
+}
+
+.project-settings-aside-hidden {
+  display: none;
+}
+
+.project-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.project-settings-title {
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.project-settings-empty {
+  color: var(--muted);
+  padding: 0.5rem 0;
+  font-size: 12px;
+}
+
+.project-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.project-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.project-settings-row__label {
+  color: var(--text);
+  font-size: 13px;
+}
+
 /* ── Artifact Registry panel ─────────────────────────────────────────────────── */
 
 .artifacts-panel {

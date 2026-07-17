@@ -14,9 +14,9 @@ use crate::auth;
 
 pub use daruma_api_dto::PlanWithProgress;
 pub use daruma_domain::{
-    AgentSession, LeaseMode, PlanFanoutWave, PlanGraph, PlanGraphEdge, PlanGraphNode,
-    PlanProgressSummary, Relation, Run, RunNote, RunOutcome, RunStatus, TaskRelations, WorkLease,
-    WorkUnit, WorkUnitStatus,
+    AgentSession, AutoAppendPatch, AutoAppendSettings, LeaseMode, PlanFanoutWave, PlanGraph,
+    PlanGraphEdge, PlanGraphNode, PlanProgressSummary, Relation, Run, RunNote, RunOutcome,
+    RunStatus, TaskRelations, WorkLease, WorkUnit, WorkUnitStatus,
 };
 
 // Empty = same-origin relative URLs. In dev (`trunk serve`), Trunk's [[proxy]]
@@ -107,6 +107,30 @@ async fn post_json<B: Serialize, T: for<'de> Deserialize<'de>>(
     let body_str = serde_json::to_string(body).map_err(|e| ApiError::Decode(e.to_string()))?;
 
     let resp = with_auth(Request::post(url))
+        .header("Content-Type", "application/json")
+        .body(body_str)
+        .map_err(|e| ApiError::Network(e.to_string()))?
+        .send()
+        .await
+        .map_err(|e| ApiError::Network(e.to_string()))?;
+
+    let status = resp.status();
+    if !(200..300).contains(&(status as u32)) {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(ApiError::Status(status, body));
+    }
+    resp.json::<T>()
+        .await
+        .map_err(|e| ApiError::Decode(e.to_string()))
+}
+
+async fn patch_json<B: Serialize, T: for<'de> Deserialize<'de>>(
+    url: &str,
+    body: &B,
+) -> Result<T, ApiError> {
+    let body_str = serde_json::to_string(body).map_err(|e| ApiError::Decode(e.to_string()))?;
+
+    let resp = with_auth(Request::patch(url))
         .header("Content-Type", "application/json")
         .body(body_str)
         .map_err(|e| ApiError::Network(e.to_string()))?
@@ -251,6 +275,42 @@ pub async fn list_relations_for_tasks(task_ids: &[String]) -> Result<Vec<Relatio
 pub async fn list_project_documents(project_id: &str) -> Result<Vec<Document>, ApiError> {
     let url = format!("{API_BASE}/v1/projects/{project_id}/documents");
     get_json(&url).await
+}
+
+// ── Project settings ─────────────────────────────────────────────────────────
+
+/// `GET /v1/projects/{id}/settings` — per-project auto-append toggles for the
+/// Interview/Human Log documents. A missing stored row means defaults (both
+/// toggles on) — the server, not this client, applies that default.
+pub async fn get_project_settings(project_id: &str) -> Result<AutoAppendSettings, ApiError> {
+    #[derive(Deserialize)]
+    struct Resp {
+        auto_append: AutoAppendSettings,
+    }
+    let url = format!("{API_BASE}/v1/projects/{project_id}/settings");
+    let resp: Resp = get_json(&url).await?;
+    Ok(resp.auto_append)
+}
+
+/// `PATCH /v1/projects/{id}/settings` — partial update of the auto-append
+/// toggles; `None` fields on `patch` leave the current value unchanged.
+/// Returns the full settings after the patch is applied.
+pub async fn update_project_settings(
+    project_id: &str,
+    patch: AutoAppendPatch,
+) -> Result<AutoAppendSettings, ApiError> {
+    #[derive(Serialize)]
+    struct Body {
+        auto_append: AutoAppendPatch,
+    }
+    #[derive(Deserialize)]
+    struct Data {
+        auto_append: AutoAppendSettings,
+    }
+    let url = format!("{API_BASE}/v1/projects/{project_id}/settings");
+    let resp: daruma_api_dto::MutationResponse<Data> =
+        patch_json(&url, &Body { auto_append: patch }).await?;
+    Ok(resp.data.auto_append)
 }
 
 // ── Healthz ──────────────────────────────────────────────────────────────────
