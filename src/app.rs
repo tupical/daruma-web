@@ -1,6 +1,6 @@
 use crate::components::{
     ActivityFeed, AgentOpsPanel, ArtifactsPanel, DocumentsPanel, HostShellNav, PlansPanel,
-    ProjectBar, ProjectSettingsPanel, StatusBar, TaskList, WorkspaceGraph,
+    ProjectBar, ProjectSettingsPanel, StatusBar, TaskList, TimeMachine, WorkspaceGraph,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
@@ -16,6 +16,7 @@ pub fn App() -> impl IntoView {
                 <Route path=path!("/graph") view=GraphApp />
                 <Route path=path!("/activity") view=ActivityApp />
                 <Route path=path!("/agent-ops") view=AgentOpsApp />
+                <Route path=path!("/time-machine") view=TimeMachineApp />
                 // `:project?` folds the 1- and 2-segment forms into a single
                 // route match (same RouteMatchId), so switching between
                 // `/{ws}` and `/{ws}/{proj}` only updates params instead of
@@ -79,6 +80,24 @@ fn AgentOpsApp() -> impl IntoView {
             </div>
             <main class="main main--agent-ops">
                 <AgentOpsPanel />
+            </main>
+            <StatusBar />
+        </div>
+    }
+}
+
+#[component]
+fn TimeMachineApp() -> impl IntoView {
+    view! {
+        <div class="app app--time-machine">
+            <div class="header">
+                <div class="header-row">
+                    <div class="viewer-title">"Daruma OSS Viewer"</div>
+                    <HostShellNav />
+                </div>
+            </div>
+            <main class="main main--time-machine">
+                <TimeMachine />
             </main>
             <StatusBar />
         </div>

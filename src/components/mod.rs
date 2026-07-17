@@ -9,6 +9,7 @@ pub mod project_settings_panel;
 pub mod status_bar;
 pub mod task_list;
 pub mod task_row;
+pub mod time_machine;
 pub mod workspace_graph;
 
 pub use activity_feed::ActivityFeed;
@@ -21,4 +22,5 @@ pub use project_bar::ProjectBar;
 pub use project_settings_panel::ProjectSettingsPanel;
 pub use status_bar::StatusBar;
 pub use task_list::TaskList;
+pub use time_machine::TimeMachine;
 pub use workspace_graph::WorkspaceGraph;

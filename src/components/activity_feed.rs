@@ -71,7 +71,7 @@ const ALL_CHANNELS: &[Channel] = &[
     Channel::Webhooks,
 ];
 
-fn channel_label(ch: Channel) -> &'static str {
+pub(crate) fn channel_label(ch: Channel) -> &'static str {
     match ch {
         Channel::Tasks => "Tasks",
         Channel::Plans => "Plans",
@@ -89,7 +89,6 @@ fn channel_label(ch: Channel) -> &'static str {
 }
 
 // ── Entry model ───────────────────────────────────────────────────────────────
-
 /// A single processed feed row derived from an [`EventEnvelope`].
 #[derive(Clone, Debug, PartialEq)]
 struct FeedEntry {
@@ -143,7 +142,7 @@ impl FeedRow {
 
 // ── EventEnvelope → FeedEntry ─────────────────────────────────────────────────
 
-fn actor_label(env: &EventEnvelope) -> String {
+pub(crate) fn actor_label(env: &EventEnvelope) -> String {
     use daruma_domain::Actor;
     match &env.actor {
         Actor::User => "user".to_string(),
@@ -151,12 +150,12 @@ fn actor_label(env: &EventEnvelope) -> String {
     }
 }
 
-fn is_agent_actor(env: &EventEnvelope) -> bool {
+pub(crate) fn is_agent_actor(env: &EventEnvelope) -> bool {
     use daruma_domain::Actor;
     matches!(&env.actor, Actor::Agent { .. })
 }
 
-fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
+pub(crate) fn entry_summary(env: &EventEnvelope) -> (String, Option<String>) {
     match &env.payload {
         // ── Tasks ─────────────────────────────────────────────────────────────
         Event::TaskCreated { task } => {
@@ -441,7 +440,7 @@ fn build_rows(entries: Vec<FeedEntry>) -> Vec<FeedRow> {
 
 // ── Time formatting ───────────────────────────────────────────────────────────
 
-fn format_time(ts: Timestamp) -> String {
+pub(crate) fn format_time(ts: Timestamp) -> String {
     // Timestamp is chrono::DateTime<Utc> via daruma_shared::time.
     use chrono::Timelike;
     let dt: chrono::DateTime<chrono::Utc> = ts.into();
@@ -482,7 +481,7 @@ fn conn_badge_label(state: &ConnState) -> String {
 
 // ── Channel badge ─────────────────────────────────────────────────────────────
 
-fn channel_class(ch: Channel) -> &'static str {
+pub(crate) fn channel_class(ch: Channel) -> &'static str {
     match ch {
         Channel::Tasks => "ch-badge ch-tasks",
         Channel::Plans => "ch-badge ch-plans",
