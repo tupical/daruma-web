@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use daruma_domain::{ArtifactStatus, PlanStatus, Priority, RelationKind, RunStatus, Status};
 use daruma_events::{Event, EventEnvelope};
 use daruma_shared::{ArtifactId, DocumentId, PlanId, ProjectId, RelationId, RunId, TaskId};
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -68,7 +69,7 @@ const STATUS_ORDER: &[Status] = &[
 
 // ── Reprojection ──────────────────────────────────────────────────────────────
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct TmTask {
     title: String,
     status: Status,
@@ -78,7 +79,7 @@ struct TmTask {
     last_seq: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct TmPlan {
     title: String,
     status: PlanStatus,
@@ -88,14 +89,14 @@ struct TmPlan {
     last_seq: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct TmRelation {
     from: TaskId,
     to: TaskId,
     kind: RelationKind,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct TmArtifact {
     title: String,
     status: ArtifactStatus,
@@ -103,13 +104,13 @@ struct TmArtifact {
     last_seq: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct TmDoc {
     title: String,
     archived: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct TmRun {
     plan_id: PlanId,
     status: RunStatus,
@@ -118,7 +119,7 @@ struct TmRun {
 
 /// Workspace state re-projected from a prefix of the event log.
 /// `*_order` vectors keep creation order for stable rendering.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 struct TmState {
     tasks: HashMap<TaskId, TmTask>,
     task_order: Vec<TaskId>,
@@ -403,7 +404,7 @@ fn replay(events: &[EventEnvelope], count: usize) -> TmState {
 
 // ── Diff ──────────────────────────────────────────────────────────────────────
 
-#[derive(Default)]
+#[derive(Clone, Default, PartialEq)]
 struct TmDiff {
     tasks_added: Vec<(TaskId, TmTask)>,
     tasks_removed: Vec<(TaskId, TmTask)>,
@@ -663,7 +664,7 @@ pub fn TimeMachine() -> impl IntoView {
     let first_load: RwSignal<bool> = RwSignal::new(true);
 
     // ── Cursor + mode ─────────────────────────────────────────────────────
-    /// Number of leading events applied (0 = before the first event).
+    // Number of leading events applied (0 = before the first event).
     let pos: RwSignal<usize> = RwSignal::new(0);
     let playing: RwSignal<bool> = RwSignal::new(false);
     let speed_idx: RwSignal<usize> = RwSignal::new(1);
@@ -698,22 +699,26 @@ pub fn TimeMachine() -> impl IntoView {
     });
 
     // ── Playback engine ───────────────────────────────────────────────────
+    // Scoped tick loop (same pattern as status_bar/agent_ops polling): the
+    // effect re-runs on play/pause/speed, disposing the previous run's task.
     Effect::new(move |_| {
         if !playing.get() {
             return;
         }
         let step = SPEEDS[speed_idx.get()].1;
-        let interval = gloo_timers::callback::Interval::new(TICK_MS, move || {
-            let len = events_len.get_untracked();
-            let p = pos.get_untracked();
-            if p + step >= len {
-                pos.set(len);
-                playing.set(false);
-            } else {
+        leptos::task::spawn_local_scoped_with_cancellation(async move {
+            loop {
+                TimeoutFuture::new(TICK_MS).await;
+                let len = events_len.get_untracked();
+                let p = pos.get_untracked();
+                if p + step >= len {
+                    pos.set(len);
+                    playing.set(false);
+                    break;
+                }
                 pos.set(p + step);
             }
         });
-        on_cleanup(move || drop(interval));
     });
 
     // ── Derived state ─────────────────────────────────────────────────────
@@ -1066,16 +1071,17 @@ fn TasksPanel(state: Memo<TmState>, cur_seq: Memo<Option<u64>>) -> impl IntoView
                         let rows = tasks
                             .into_iter()
                             .take(GROUP_CAP)
-                            .map(|(id, t)| {
+                            .map(|(_, t)| {
                                 let hot = t.last_seq == cur.unwrap_or(0);
                                 let project = t
                                     .project_id
                                     .and_then(|pid| s.projects.get(&pid).cloned())
                                     .unwrap_or_else(|| "inbox".to_string());
+                                let title = t.title.clone();
                                 view! {
                                     <div class=if hot { "tm-card tm-card--hot" } else { "tm-card" }>
                                         <span class=status_class(t.status)>{status_label(t.status)}</span>
-                                        <span class="tm-card__title" title=t.title.clone()>{t.title}</span>
+                                        <span class="tm-card__title" title=title.clone()>{title.clone()}</span>
                                         <span class="tm-card__meta">
                                             {format!("{} · {}", t.priority.as_str(), project)}
                                         </span>
@@ -1132,9 +1138,10 @@ fn PlansPanel(state: Memo<TmState>, cur_seq: Memo<Option<u64>>) -> impl IntoView
                         } else {
                             format!("{:?}", p.status).to_lowercase()
                         };
+                        let title = p.title.clone();
                         view! {
                             <div class=if hot { "tm-card tm-card--hot" } else { "tm-card" }>
-                                <span class="tm-card__title" title=p.title.clone()>{p.title}</span>
+                                <span class="tm-card__title" title=title.clone()>{title.clone()}</span>
                                 <span class="tm-card__meta">
                                     {format!("{} · {}/{} · {}", status, done, tasks.len(), project)}
                                 </span>
@@ -1197,9 +1204,10 @@ fn LinksPanel(state: Memo<TmState>, cur_seq: Memo<Option<u64>>) -> impl IntoView
                     .take(GROUP_CAP)
                     .map(|(_, a)| {
                         let hot = a.last_seq == cur.unwrap_or(0);
+                        let title = a.title.clone();
                         view! {
                             <div class=if hot { "tm-card tm-card--hot" } else { "tm-card" }>
-                                <span class="tm-card__title" title=a.title.clone()>{a.title}</span>
+                                <span class="tm-card__title" title=title.clone()>{title.clone()}</span>
                                 <span class="tm-card__meta">{format!("{:?}", a.status).to_lowercase()}</span>
                             </div>
                         }
