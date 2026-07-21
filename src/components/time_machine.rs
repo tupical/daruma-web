@@ -7,21 +7,20 @@
 //! derived from the event log on the client; the server stays read-only and
 //! no server-side snapshots are needed.
 //!
-//! # Modes
-//!
-//! - **Replay** — playback with adjustable speed, jump to seq / wall-clock
-//!   time, state-at-T panels plus the tail of the event log.
-//! - **Diff** — pick two positions (A, B) and see what appeared, disappeared
-//!   and changed between them (tasks, statuses, plans, relations, artifacts).
+//! Replay is the only mode: playback with adjustable speed, jump to seq /
+//! wall-clock time, state-at-T panels plus the tail of the event log. A
+//! snapshot-diff mode used to sit alongside it; it reconstructed, by
+//! structurally comparing two replayed states, information the event log
+//! already carries exactly — see the event strip for what happened between
+//! two positions.
 //!
 //! # Layout
 //!
 //! ```text
 //! ┌─ .tm ─────────────────────────────────────────────────────────────────┐
 //! │ .tm-banner    "replay at seq N · time" + "not live" hint              │
-//! │ .tm-controls  play/speed · slider · seq/time jump · reload · mode     │
-//! │ Replay: .tm-summary · .tm-columns (tasks/plans/links) · .tm-events    │
-//! │ Diff:   .tm-diff (A/B pickers + added/removed/changed lists)          │
+//! │ .tm-controls  play/speed · slider · seq/time jump · reload            │
+//! │ .tm-summary · .tm-columns (tasks/plans/links) · .tm-events            │
 //! └───────────────────────────────────────────────────────────────────────┘
 //! ```
 
@@ -34,9 +33,10 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use super::fmt::{format_time, format_ts, status_class, ts_millis};
 use crate::api;
 use crate::components::activity_feed::{
-    actor_label, channel_class, channel_label, entry_summary, format_time, is_agent_actor,
+    actor_label, channel_class, channel_label, entry_summary, is_agent_actor,
 };
 use crate::event_store::EventStoreCtx;
 
@@ -250,7 +250,9 @@ fn apply_event(state: &mut TmState, env: &EventEnvelope) {
             state.relation_order.retain(|id| id != relation_id);
         }
         Event::TaskRelationKindChanged {
-            relation_id, to_kind, ..
+            relation_id,
+            to_kind,
+            ..
         } => {
             if let Some(r) = state.relations.get_mut(relation_id) {
                 r.kind = *to_kind;
@@ -402,190 +404,7 @@ fn replay(events: &[EventEnvelope], count: usize) -> TmState {
     state
 }
 
-// ── Diff ──────────────────────────────────────────────────────────────────────
-
-#[derive(Clone, Default, PartialEq)]
-struct TmDiff {
-    tasks_added: Vec<(TaskId, TmTask)>,
-    tasks_removed: Vec<(TaskId, TmTask)>,
-    /// (title, change lines)
-    tasks_changed: Vec<(String, Vec<String>)>,
-    plans_added: Vec<(PlanId, TmPlan)>,
-    plans_removed: Vec<(PlanId, TmPlan)>,
-    plans_changed: Vec<(String, Vec<String>)>,
-    relations_added: Vec<(RelationId, TmRelation)>,
-    relations_removed: Vec<(RelationId, TmRelation)>,
-    relations_changed: Vec<(RelationId, TmRelation, String)>,
-    artifacts_added: Vec<(ArtifactId, TmArtifact)>,
-    artifacts_removed: Vec<(ArtifactId, TmArtifact)>,
-    artifacts_changed: Vec<(String, Vec<String>)>,
-    docs_added: Vec<(DocumentId, TmDoc)>,
-    docs_changed: Vec<(String, Vec<String>)>,
-}
-
-impl TmDiff {
-    fn total_changes(&self) -> usize {
-        self.tasks_added.len()
-            + self.tasks_removed.len()
-            + self.tasks_changed.len()
-            + self.plans_added.len()
-            + self.plans_removed.len()
-            + self.plans_changed.len()
-            + self.relations_added.len()
-            + self.relations_removed.len()
-            + self.relations_changed.len()
-            + self.artifacts_added.len()
-            + self.artifacts_removed.len()
-            + self.artifacts_changed.len()
-            + self.docs_added.len()
-            + self.docs_changed.len()
-    }
-}
-
-fn diff_states(a: &TmState, b: &TmState) -> TmDiff {
-    let mut diff = TmDiff::default();
-
-    for id in &b.task_order {
-        let tb = &b.tasks[id];
-        match a.tasks.get(id) {
-            None => diff.tasks_added.push((*id, tb.clone())),
-            Some(ta) => {
-                let mut changes = Vec::new();
-                if ta.status != tb.status {
-                    changes.push(format!("{:?} → {:?}", ta.status, tb.status));
-                }
-                if ta.title != tb.title {
-                    changes.push(format!("renamed: \"{}\" → \"{}\"", ta.title, tb.title));
-                }
-                if ta.priority != tb.priority {
-                    changes.push(format!("priority {:?} → {:?}", ta.priority, tb.priority));
-                }
-                if !changes.is_empty() {
-                    diff.tasks_changed.push((tb.title.clone(), changes));
-                }
-            }
-        }
-    }
-    for id in &a.task_order {
-        if !b.tasks.contains_key(id) {
-            diff.tasks_removed.push((*id, a.tasks[id].clone()));
-        }
-    }
-
-    for id in &b.plan_order {
-        let pb = &b.plans[id];
-        match a.plans.get(id) {
-            None => diff.plans_added.push((*id, pb.clone())),
-            Some(pa) => {
-                let mut changes = Vec::new();
-                if pa.status != pb.status {
-                    changes.push(format!("{:?} → {:?}", pa.status, pb.status));
-                }
-                if pa.title != pb.title {
-                    changes.push(format!("renamed: \"{}\" → \"{}\"", pa.title, pb.title));
-                }
-                if !pa.archived && pb.archived {
-                    changes.push("archived".to_string());
-                }
-                if !changes.is_empty() {
-                    diff.plans_changed.push((pb.title.clone(), changes));
-                }
-            }
-        }
-    }
-    for id in &a.plan_order {
-        if !b.plans.contains_key(id) {
-            diff.plans_removed.push((*id, a.plans[id].clone()));
-        }
-    }
-
-    for id in &b.relation_order {
-        let rb = &b.relations[id];
-        match a.relations.get(id) {
-            None => diff.relations_added.push((*id, rb.clone())),
-            Some(ra) => {
-                if ra.kind != rb.kind {
-                    diff.relations_changed.push((
-                        *id,
-                        rb.clone(),
-                        format!("{:?} → {:?}", ra.kind, rb.kind),
-                    ));
-                }
-            }
-        }
-    }
-    for id in &a.relation_order {
-        if !b.relations.contains_key(id) {
-            diff.relations_removed.push((*id, a.relations[id].clone()));
-        }
-    }
-
-    for id in &b.artifact_order {
-        let ab = &b.artifacts[id];
-        match a.artifacts.get(id) {
-            None => diff.artifacts_added.push((*id, ab.clone())),
-            Some(aa) => {
-                let mut changes = Vec::new();
-                if aa.status != ab.status {
-                    changes.push(format!("{:?} → {:?}", aa.status, ab.status));
-                }
-                if aa.title != ab.title {
-                    changes.push(format!("renamed: \"{}\" → \"{}\"", aa.title, ab.title));
-                }
-                if !changes.is_empty() {
-                    diff.artifacts_changed.push((ab.title.clone(), changes));
-                }
-            }
-        }
-    }
-    for id in &a.artifact_order {
-        if !b.artifacts.contains_key(id) {
-            diff.artifacts_removed.push((*id, a.artifacts[id].clone()));
-        }
-    }
-
-    for (id, db) in &b.docs {
-        match a.docs.get(id) {
-            None => diff.docs_added.push((*id, db.clone())),
-            Some(da) => {
-                let mut changes = Vec::new();
-                if da.title != db.title {
-                    changes.push(format!("renamed: \"{}\" → \"{}\"", da.title, db.title));
-                }
-                if !da.archived && db.archived {
-                    changes.push("archived".to_string());
-                }
-                if !changes.is_empty() {
-                    diff.docs_changed.push((db.title.clone(), changes));
-                }
-            }
-        }
-    }
-
-    diff
-}
-
 // ── Small helpers ─────────────────────────────────────────────────────────────
-
-fn format_dt(ts: daruma_shared::time::Timestamp) -> String {
-    ts.format("%Y-%m-%d %H:%M:%S").to_string()
-}
-
-fn ts_millis(ts: daruma_shared::time::Timestamp) -> i64 {
-    ts.timestamp_millis()
-}
-
-/// Same status→class mapping as task_row.rs.
-fn status_class(s: Status) -> &'static str {
-    match s {
-        Status::Inbox => "status status-inbox",
-        Status::Todo => "status status-todo",
-        Status::InProgress => "status status-in-progress",
-        Status::InReview => "status status-in-review",
-        Status::Done => "status status-done",
-        Status::Cancelled => "status status-cancelled",
-    }
-}
 
 fn status_label(s: Status) -> &'static str {
     s.as_str()
@@ -596,15 +415,13 @@ fn short_id<T: std::fmt::Display>(id: T) -> String {
 }
 
 /// Page through `GET /v1/events?since=…` until the head and store the full
-/// history in `base`. `pos`/`diff_b` snap to the head on the first load.
-#[allow(clippy::too_many_arguments)]
+/// history in `base`. `pos` snaps to the head on the first load.
 fn load_history(
     base: RwSignal<Vec<EventEnvelope>>,
     base_max_seq: RwSignal<u64>,
     loading: RwSignal<bool>,
     load_error: RwSignal<Option<String>>,
     pos: RwSignal<usize>,
-    diff_b: RwSignal<usize>,
     first_load: RwSignal<bool>,
 ) {
     loading.set(true);
@@ -636,7 +453,6 @@ fn load_history(
         base.set(all);
         if first_load.get_untracked() {
             pos.set(len);
-            diff_b.set(len);
             first_load.set(false);
         }
         loading.set(false);
@@ -644,12 +460,6 @@ fn load_history(
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum TmMode {
-    Replay,
-    Diff,
-}
 
 /// Full-screen Time Machine view; mounted on the `/time-machine` route.
 #[component]
@@ -668,23 +478,14 @@ pub fn TimeMachine() -> impl IntoView {
     let pos: RwSignal<usize> = RwSignal::new(0);
     let playing: RwSignal<bool> = RwSignal::new(false);
     let speed_idx: RwSignal<usize> = RwSignal::new(1);
-    let mode: RwSignal<TmMode> = RwSignal::new(TmMode::Replay);
-    let diff_a: RwSignal<usize> = RwSignal::new(0);
-    let diff_b: RwSignal<usize> = RwSignal::new(0);
 
-    load_history(base, base_max_seq, loading, load_error, pos, diff_b, first_load);
+    load_history(base, base_max_seq, loading, load_error, pos, first_load);
 
     // Full log = fetched history + live tail (deduped by seq).
     let events = Memo::new(move |_| {
         let mut v = base.get();
         let max = base_max_seq.get();
-        v.extend(
-            store
-                .all_events
-                .get()
-                .into_iter()
-                .filter(|e| e.seq > max),
-        );
+        v.extend(store.all_events.get().into_iter().filter(|e| e.seq > max));
         v
     });
     let events_len = Memo::new(move |_| events.with(|v| v.len()));
@@ -735,20 +536,6 @@ pub fn TimeMachine() -> impl IntoView {
         events.with(|v| replay(v, p.min(v.len())))
     });
 
-    let diff = Memo::new(move |_| {
-        if mode.get() != TmMode::Diff {
-            return None;
-        }
-        let a = diff_a.get();
-        let b = diff_b.get();
-        events.with(|v| {
-            let sa = replay(v, a.min(v.len()));
-            let sb = replay(v, b.min(v.len()));
-            let d = diff_states(&sa, &sb);
-            Some((sa, sb, d))
-        })
-    });
-
     // ── Control handlers ──────────────────────────────────────────────────
     let play_toggle = move |_| {
         if playing.get_untracked() {
@@ -783,8 +570,8 @@ pub fn TimeMachine() -> impl IntoView {
             return;
         }
         let target = ms as i64;
-        let p = events
-            .with_untracked(|v| v.partition_point(|e| ts_millis(e.occurred_at) <= target));
+        let p =
+            events.with_untracked(|v| v.partition_point(|e| ts_millis(e.occurred_at) <= target));
         pos.set(p);
         playing.set(false);
     };
@@ -794,24 +581,6 @@ pub fn TimeMachine() -> impl IntoView {
         let p = pos.get_untracked() as isize + delta;
         pos.set(p.clamp(0, len as isize) as usize);
         playing.set(false);
-    };
-
-    let set_diff_seq = move |target: RwSignal<usize>, ev: leptos::ev::Event| {
-        if let Ok(seq) = event_target_value(&ev).trim().parse::<u64>() {
-            let p = events.with_untracked(|v| v.partition_point(|e| e.seq <= seq));
-            target.set(p);
-        }
-    };
-
-    // Label for a cursor position: "start" or "seq N · time".
-    let pos_label = move |p: usize| {
-        events.with_untracked(|v| {
-            if p == 0 || v.is_empty() {
-                return "start".to_string();
-            }
-            let env = &v[(p - 1).min(v.len() - 1)];
-            format!("seq {} · {}", env.seq, format_dt(env.occurred_at))
-        })
     };
 
     let cur_seq = Memo::new(move |_| current.get().map(|e| e.seq));
@@ -827,7 +596,7 @@ pub fn TimeMachine() -> impl IntoView {
                         Some(env) => format!(
                             "replay at seq {} · {} UTC",
                             env.seq,
-                            format_dt(env.occurred_at)
+                            format_ts(env.occurred_at)
                         ),
                         None => "before the first event".to_string(),
                     }}
@@ -897,37 +666,9 @@ pub fn TimeMachine() -> impl IntoView {
                 <span class="tm-pos">{move || format!("{}/{}", pos.get(), events_len.get())}</span>
                 <button class="tm-btn" type="button" title="Reload history"
                     on:click=move |_| load_history(
-                        base, base_max_seq, loading, load_error, pos, diff_b, first_load,
+                        base, base_max_seq, loading, load_error, pos, first_load,
                     )>
                     "↻"
-                </button>
-                <span class="tm-controls__spacer"></span>
-                <button
-                    class=move || if mode.get() == TmMode::Replay {
-                        "tm-btn tm-btn--active"
-                    } else {
-                        "tm-btn"
-                    }
-                    type="button"
-                    on:click=move |_| mode.set(TmMode::Replay)
-                >
-                    "Replay"
-                </button>
-                <button
-                    class=move || if mode.get() == TmMode::Diff {
-                        "tm-btn tm-btn--active"
-                    } else {
-                        "tm-btn"
-                    }
-                    type="button"
-                    on:click=move |_| {
-                        if diff_b.get_untracked() == 0 {
-                            diff_b.set(events_len.get_untracked());
-                        }
-                        mode.set(TmMode::Diff);
-                    }
-                >
-                    "Diff"
                 </button>
             </div>
 
@@ -944,22 +685,7 @@ pub fn TimeMachine() -> impl IntoView {
                 <div class="tm-note">"No events yet — the workspace log is empty."</div>
             </Show>
 
-            // ── Mode body ─────────────────────────────────────────────────
-            {move || match mode.get() {
-                TmMode::Replay => view! {
-                    <ReplayView state=state cur_seq=cur_seq events=events pos=pos />
-                }.into_any(),
-                TmMode::Diff => view! {
-                    <DiffView
-                        diff=diff
-                        diff_a=diff_a
-                        diff_b=diff_b
-                        pos=pos
-                        set_diff_seq=set_diff_seq
-                        pos_label=pos_label
-                    />
-                }.into_any(),
-            }}
+            <ReplayView state=state cur_seq=cur_seq events=events pos=pos />
         </div>
     }
 }
@@ -1255,191 +981,4 @@ fn LinksPanel(state: Memo<TmState>, cur_seq: Memo<Option<u64>>) -> impl IntoView
             })}
         </div>
     }
-}
-
-// ── Diff view ─────────────────────────────────────────────────────────────────
-
-#[component]
-fn DiffView(
-    diff: Memo<Option<(TmState, TmState, TmDiff)>>,
-    diff_a: RwSignal<usize>,
-    diff_b: RwSignal<usize>,
-    pos: RwSignal<usize>,
-    set_diff_seq: impl Fn(RwSignal<usize>, leptos::ev::Event) + Copy + Send + 'static,
-    pos_label: impl Fn(usize) -> String + Copy + Send + 'static,
-) -> impl IntoView {
-    view! {
-        <div class="tm-diff">
-            <div class="tm-diff__pickers">
-                <span class="tm-diff__label">"A"</span>
-                <input
-                    type="number"
-                    class="tm-input tm-input--seq"
-                    placeholder="seq A"
-                    min="0"
-                    title="Diff point A (event seq)"
-                    on:change=move |ev| set_diff_seq(diff_a, ev)
-                />
-                <span class="tm-diff__at">{move || pos_label(diff_a.get())}</span>
-                <button class="tm-btn" type="button" title="Set A to the replay cursor"
-                    on:click=move |_| diff_a.set(pos.get_untracked())>
-                    "A ← cursor"
-                </button>
-                <span class="tm-controls__sep"></span>
-                <span class="tm-diff__label">"B"</span>
-                <input
-                    type="number"
-                    class="tm-input tm-input--seq"
-                    placeholder="seq B"
-                    min="0"
-                    title="Diff point B (event seq)"
-                    on:change=move |ev| set_diff_seq(diff_b, ev)
-                />
-                <span class="tm-diff__at">{move || pos_label(diff_b.get())}</span>
-                <button class="tm-btn" type="button" title="Set B to the replay cursor"
-                    on:click=move |_| diff_b.set(pos.get_untracked())>
-                    "B ← cursor"
-                </button>
-            </div>
-
-            {move || match diff.get() {
-                None => view! { <div class="tm-note">"Pick two moments to compare."</div> }.into_any(),
-                Some((sa, sb, d)) => {
-                    if d.total_changes() == 0 {
-                        return view! { <div class="tm-note">"No changes between A and B."</div> }
-                            .into_any();
-                    }
-                    view! {
-                        <div class="tm-summary">
-                            <span class="tm-chip tm-chip--added">
-                                {format!("+{} added", d.tasks_added.len() + d.plans_added.len() + d.artifacts_added.len() + d.docs_added.len())}
-                            </span>
-                            <span class="tm-chip tm-chip--removed">
-                                {format!("−{} removed", d.tasks_removed.len() + d.plans_removed.len() + d.artifacts_removed.len())}
-                            </span>
-                            <span class="tm-chip">
-                                {format!("~{} changed", d.tasks_changed.len() + d.plans_changed.len() + d.artifacts_changed.len() + d.relations_changed.len() + d.docs_changed.len())}
-                            </span>
-                            <span class="tm-chip">
-                                {format!("links +{} −{}", d.relations_added.len(), d.relations_removed.len())}
-                            </span>
-                        </div>
-                        <div class="tm-columns">
-                            <div class="tm-panel">
-                                <div class="tm-panel__title">"Tasks"</div>
-                                {d.tasks_added.iter().map(|(_, t)| view! {
-                                    <div class="tm-card tm-diff-row--added">
-                                        <span class=status_class(t.status)>{status_label(t.status)}</span>
-                                        <span class="tm-card__title">{format!("+ {}", t.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.tasks_removed.iter().map(|(_, t)| view! {
-                                    <div class="tm-card tm-diff-row--removed">
-                                        <span class="tm-card__title">{format!("− {}", t.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.tasks_changed.iter().map(|(title, changes)| view! {
-                                    <div class="tm-card tm-diff-row--changed">
-                                        <span class="tm-card__title">{format!("~ {title}")}</span>
-                                        <span class="tm-card__meta">{changes.join("; ")}</span>
-                                    </div>
-                                }).collect_view()}
-                            </div>
-                            <div class="tm-panel">
-                                <div class="tm-panel__title">"Plans & docs"</div>
-                                {d.plans_added.iter().map(|(_, p)| view! {
-                                    <div class="tm-card tm-diff-row--added">
-                                        <span class="tm-card__title">{format!("+ plan: {}", p.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.plans_removed.iter().map(|(_, p)| view! {
-                                    <div class="tm-card tm-diff-row--removed">
-                                        <span class="tm-card__title">{format!("− plan: {}", p.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.plans_changed.iter().map(|(title, changes)| view! {
-                                    <div class="tm-card tm-diff-row--changed">
-                                        <span class="tm-card__title">{format!("~ plan: {title}")}</span>
-                                        <span class="tm-card__meta">{changes.join("; ")}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.docs_added.iter().map(|(_, doc)| view! {
-                                    <div class="tm-card tm-diff-row--added">
-                                        <span class="tm-card__title">{format!("+ doc: {}", doc.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.docs_changed.iter().map(|(title, changes)| view! {
-                                    <div class="tm-card tm-diff-row--changed">
-                                        <span class="tm-card__title">{format!("~ doc: {title}")}</span>
-                                        <span class="tm-card__meta">{changes.join("; ")}</span>
-                                    </div>
-                                }).collect_view()}
-                            </div>
-                            <div class="tm-panel">
-                                <div class="tm-panel__title">"Artifacts & links"</div>
-                                {d.artifacts_added.iter().map(|(_, a)| view! {
-                                    <div class="tm-card tm-diff-row--added">
-                                        <span class="tm-card__title">{format!("+ {}", a.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.artifacts_removed.iter().map(|(_, a)| view! {
-                                    <div class="tm-card tm-diff-row--removed">
-                                        <span class="tm-card__title">{format!("− {}", a.title)}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.artifacts_changed.iter().map(|(title, changes)| view! {
-                                    <div class="tm-card tm-diff-row--changed">
-                                        <span class="tm-card__title">{format!("~ {title}")}</span>
-                                        <span class="tm-card__meta">{changes.join("; ")}</span>
-                                    </div>
-                                }).collect_view()}
-                                {d.relations_added.iter().map(|(_, r)| {
-                                    let from = title_in(&sb, &sa, r.from);
-                                    let to = title_in(&sb, &sa, r.to);
-                                    view! {
-                                        <div class="tm-card tm-diff-row--added">
-                                            <span class="tm-card__title">{format!("+ {from} → {to}")}</span>
-                                            <span class="tm-card__meta">{format!("{:?}", r.kind)}</span>
-                                        </div>
-                                    }
-                                }).collect_view()}
-                                {d.relations_removed.iter().map(|(_, r)| {
-                                    let from = title_in(&sa, &sb, r.from);
-                                    let to = title_in(&sa, &sb, r.to);
-                                    view! {
-                                        <div class="tm-card tm-diff-row--removed">
-                                            <span class="tm-card__title">{format!("− {from} → {to}")}</span>
-                                            <span class="tm-card__meta">{format!("{:?}", r.kind)}</span>
-                                        </div>
-                                    }
-                                }).collect_view()}
-                                {d.relations_changed.iter().map(|(_, r, change)| {
-                                    let from = title_in(&sb, &sa, r.from);
-                                    let to = title_in(&sb, &sa, r.to);
-                                    view! {
-                                        <div class="tm-card tm-diff-row--changed">
-                                            <span class="tm-card__title">{format!("~ {from} → {to}")}</span>
-                                            <span class="tm-card__meta">{change.clone()}</span>
-                                        </div>
-                                    }
-                                }).collect_view()}
-                            </div>
-                        </div>
-                    }
-                    .into_any()
-                }
-            }}
-        </div>
-    }
-}
-
-/// Resolve a task title for diff rendering: look in the preferred state first,
-/// then the other, then fall back to a short id.
-fn title_in(primary: &TmState, fallback: &TmState, id: TaskId) -> String {
-    primary
-        .tasks
-        .get(&id)
-        .or_else(|| fallback.tasks.get(&id))
-        .map(|t| t.title.clone())
-        .unwrap_or_else(|| short_id(id))
 }

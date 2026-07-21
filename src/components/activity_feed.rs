@@ -19,11 +19,12 @@
 //! └───────────────────────────────────────────────────────────────────────┘
 //! ```
 
+use super::fmt::format_time;
 use crate::api;
 use crate::event_store::{ConnState, EventStoreCtx};
-use leptos::prelude::*;
 use daruma_events::{Channel, Event, EventEnvelope};
 use daruma_shared::time::Timestamp;
+use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -436,15 +437,6 @@ fn build_rows(entries: Vec<FeedEntry>) -> Vec<FeedRow> {
         rows.push(row);
     }
     rows
-}
-
-// ── Time formatting ───────────────────────────────────────────────────────────
-
-pub(crate) fn format_time(ts: Timestamp) -> String {
-    // Timestamp is chrono::DateTime<Utc> via daruma_shared::time.
-    use chrono::Timelike;
-    let dt: chrono::DateTime<chrono::Utc> = ts.into();
-    format!("{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second())
 }
 
 /// Format a date as "YYYY-MM-DD" for day separator headers.

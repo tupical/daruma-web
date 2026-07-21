@@ -1,9 +1,10 @@
+use super::fmt::{short_id, status_class, status_label};
 use crate::api::{self, TaskRelations};
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::relations_ctx::RelationsCtx;
-use leptos::prelude::*;
 use daruma_domain::{Actor, Priority, Relation, RelationKind, Task};
 use daruma_shared::ProjectId;
+use leptos::prelude::*;
 
 #[component]
 pub fn TaskRow(task: Task) -> impl IntoView {
@@ -47,23 +48,15 @@ pub fn TaskRow(task: Task) -> impl IntoView {
         "task-row"
     };
 
+    // task_row decorates Done/Cancelled with ✓/✗; the other statuses take
+    // the shared undecorated label.
     let status_label = match status {
-        daruma_domain::Status::Inbox => "Inbox",
-        daruma_domain::Status::Todo => "Todo",
-        daruma_domain::Status::InProgress => "In Progress",
-        daruma_domain::Status::InReview => "In Review",
         daruma_domain::Status::Done => "✓ Done",
         daruma_domain::Status::Cancelled => "✗ Cancelled",
+        s => status_label(s),
     };
 
-    let status_class = match status {
-        daruma_domain::Status::Inbox => "status status-inbox",
-        daruma_domain::Status::Todo => "status status-todo",
-        daruma_domain::Status::InProgress => "status status-in-progress",
-        daruma_domain::Status::InReview => "status status-in-review",
-        daruma_domain::Status::Done => "status status-done",
-        daruma_domain::Status::Cancelled => "status status-cancelled",
-    };
+    let status_class = status_class(status);
 
     let filter = projects_ctx.current_filter;
     let names = projects_ctx.names;
@@ -360,15 +353,5 @@ fn actor_label(actor: &Actor) -> String {
     match actor {
         Actor::User => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
-    }
-}
-
-/// Return last 8 non-hyphen characters of the ID string (mirrors apps/web/task-row.ts shortId).
-fn short_id(id: &str) -> String {
-    let compact: String = id.chars().filter(|&c| c != '-').collect();
-    if compact.len() >= 8 {
-        compact[compact.len() - 8..].to_string()
-    } else {
-        compact
     }
 }

@@ -17,23 +17,13 @@
 //! shapes here would be premature — a blunt refetch is simpler and just as
 //! correct for a read-only viewer.
 
+use super::fmt::short_id;
 use crate::api::{self, ArtifactRow, GraphNeighborhood};
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
 use daruma_events::{Channel, EventEnvelope};
 use leptos::prelude::*;
 use std::collections::HashMap;
-
-/// Last 8 non-hyphen characters of an id string (mirrors `task_row.rs`'s
-/// `short_id` — same convention, small enough not to be worth sharing).
-fn short_id(id: &str) -> String {
-    let compact: String = id.chars().filter(|&c| c != '-').collect();
-    if compact.len() >= 8 {
-        compact[compact.len() - 8..].to_string()
-    } else {
-        compact
-    }
-}
 
 fn kind_class(kind: &str) -> String {
     format!("artifact-kind-badge artifact-kind-badge--{kind}")

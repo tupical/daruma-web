@@ -40,8 +40,8 @@
 //! from `spawn_local` futures on the same thread.  `EventStoreCtx` is `Clone`
 //! (all fields are `Copy` signals) so it can be captured by multiple closures.
 
-use leptos::prelude::*;
 use daruma_events::{Channel, EventEnvelope};
+use leptos::prelude::*;
 
 /// Connection lifecycle state exposed to UI components.
 #[derive(Clone, Debug, PartialEq, Eq)]

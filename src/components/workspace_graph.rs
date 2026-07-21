@@ -22,9 +22,7 @@ use gloo_timers::callback::Timeout;
 use leptos::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::api::{
-    self, GraphNeighborhood, GraphNode,
-};
+use crate::api::{self, GraphNeighborhood, GraphNode};
 use crate::event_store::EventStoreCtx;
 use crate::projects_ctx::ProjectsCtx;
 
@@ -144,9 +142,10 @@ impl EdgeKind {
 
     fn stroke_dash(&self) -> &'static str {
         match self {
-            EdgeKind::Blocks | EdgeKind::RelatesTo | EdgeKind::Duplicates | EdgeKind::WasBlocking => {
-                "5,4"
-            }
+            EdgeKind::Blocks
+            | EdgeKind::RelatesTo
+            | EdgeKind::Duplicates
+            | EdgeKind::WasBlocking => "5,4",
             EdgeKind::Produces | EdgeKind::ArtifactRel => "8,3",
             _ => "none",
         }
@@ -230,9 +229,7 @@ async fn fetch_full_neighborhood(project_source_ids: Vec<String>) -> Option<Grap
                 }
             }
             Err(e) => {
-                leptos::logging::warn!(
-                    "[graph] related({node_id}) failed: {e}"
-                );
+                leptos::logging::warn!("[graph] related({node_id}) failed: {e}");
             }
         }
     }
@@ -295,10 +292,7 @@ pub fn WorkspaceGraph() -> impl IntoView {
 
         let projects = projects_ctx.projects.get(); // reactive dependency
 
-        let project_source_ids: Vec<String> = projects
-            .iter()
-            .map(|p| p.id.to_string())
-            .collect();
+        let project_source_ids: Vec<String> = projects.iter().map(|p| p.id.to_string()).collect();
 
         if project_source_ids.is_empty() {
             // Projects not loaded yet — wait for next reactive tick.
@@ -616,9 +610,8 @@ fn GraphEdges(
                 let from = pos.get(&edge.from_id)?;
                 let to = pos.get(&edge.to_id)?;
 
-                let dimmed = in_impact
-                    && !iids.contains(&edge.from_id)
-                    && !iids.contains(&edge.to_id);
+                let dimmed =
+                    in_impact && !iids.contains(&edge.from_id) && !iids.contains(&edge.to_id);
                 let opacity = if dimmed { 0.12 } else { 0.7 };
                 let color = ek.stroke_color();
                 let dash = ek.stroke_dash();
@@ -681,7 +674,8 @@ fn GraphNodes(
 
                 let dimmed = in_impact && !iids.contains(&node.id);
                 let is_selected = sel.as_ref().map(|s| s.id == node.id).unwrap_or(false);
-                let is_impact_root = in_impact && iids.iter().next().map(|id| id == &node.id).unwrap_or(false);
+                let is_impact_root =
+                    in_impact && iids.iter().next().map(|id| id == &node.id).unwrap_or(false);
 
                 let color = nk.color();
                 let label = truncate_title(&node.title, 18);
@@ -740,7 +734,11 @@ fn NodeShape(
     } else {
         color.clone()
     };
-    let stroke_width = if selected || impact_root { "2.5" } else { "1.2" };
+    let stroke_width = if selected || impact_root {
+        "2.5"
+    } else {
+        "1.2"
+    };
 
     match kind {
         NodeKind::Task => view! {
@@ -881,34 +879,38 @@ fn GraphFilters(filter_state: RwSignal<FilterState>) -> impl IntoView {
         NodeKind::Comment,
     ];
 
-    let chips = all_node_kinds.iter().map(|kind| {
-        let kind = kind.clone();
-        let color = kind.color();
-        let label = kind.label();
-        let hidden_kind = kind.clone();
-        let toggle_kind = kind.clone();
-        let is_hidden = move || filter_state.with(|f| f.hidden_node_kinds.contains(&hidden_kind));
-        view! {
-            <button
-                type="button"
-                class="graph-filter-chip"
-                style=move || format!(
-                    "border-color: {}; opacity: {};",
-                    color,
-                    if is_hidden() { "0.35" } else { "1.0" }
-                )
-                on:click=move |_| {
-                    filter_state.update(|f| {
-                        if !f.hidden_node_kinds.remove(&toggle_kind) {
-                            f.hidden_node_kinds.insert(toggle_kind.clone());
-                        }
-                    });
-                }
-            >
-                <span style=format!("color: {color}")>{label}</span>
-            </button>
-        }
-    }).collect_view();
+    let chips = all_node_kinds
+        .iter()
+        .map(|kind| {
+            let kind = kind.clone();
+            let color = kind.color();
+            let label = kind.label();
+            let hidden_kind = kind.clone();
+            let toggle_kind = kind.clone();
+            let is_hidden =
+                move || filter_state.with(|f| f.hidden_node_kinds.contains(&hidden_kind));
+            view! {
+                <button
+                    type="button"
+                    class="graph-filter-chip"
+                    style=move || format!(
+                        "border-color: {}; opacity: {};",
+                        color,
+                        if is_hidden() { "0.35" } else { "1.0" }
+                    )
+                    on:click=move |_| {
+                        filter_state.update(|f| {
+                            if !f.hidden_node_kinds.remove(&toggle_kind) {
+                                f.hidden_node_kinds.insert(toggle_kind.clone());
+                            }
+                        });
+                    }
+                >
+                    <span style=format!("color: {color}")>{label}</span>
+                </button>
+            }
+        })
+        .collect_view();
 
     view! {
         <div class="graph-filter-bar">
@@ -942,11 +944,7 @@ fn init_positions(nb: &GraphNeighborhood, positions: RwSignal<HashMap<String, No
 }
 
 /// Run `steps` force-layout ticks, one per TICK_MS, updating `positions`.
-fn run_layout(
-    positions: RwSignal<HashMap<String, NodePos>>,
-    running: RwSignal<bool>,
-    steps: u32,
-) {
+fn run_layout(positions: RwSignal<HashMap<String, NodePos>>, running: RwSignal<bool>, steps: u32) {
     if running.get_untracked() {
         return;
     }
@@ -1043,22 +1041,13 @@ fn force_tick(pos: &mut HashMap<String, NodePos>) {
 // ── Geometry helpers ───────────────────────────────────────────────────────────
 
 /// Shorten a line segment so it doesn't overlap node shapes.
-fn shorten_line(
-    x1: f64, y1: f64,
-    x2: f64, y2: f64,
-    r1: f64, r2: f64,
-) -> (f64, f64, f64, f64) {
+fn shorten_line(x1: f64, y1: f64, x2: f64, y2: f64, r1: f64, r2: f64) -> (f64, f64, f64, f64) {
     let dx = x2 - x1;
     let dy = y2 - y1;
     let len = (dx * dx + dy * dy).sqrt().max(1.0);
     let ux = dx / len;
     let uy = dy / len;
-    (
-        x1 + ux * r1,
-        y1 + uy * r1,
-        x2 - ux * r2,
-        y2 - uy * r2,
-    )
+    (x1 + ux * r1, y1 + uy * r1, x2 - ux * r2, y2 - uy * r2)
 }
 
 /// Truncate a title to `max_chars` with ellipsis.

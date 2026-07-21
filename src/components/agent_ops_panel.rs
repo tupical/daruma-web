@@ -20,6 +20,7 @@
 //! `WorkUnits`). Section 5 is pure event-store derivation: `Channel::AiOps`
 //! carries the full started/phase/completed lifecycle, so no polling is needed.
 
+use super::fmt::{format_time, short_id, ts_millis};
 use crate::api::{self, AgentClaim, AgentSession, WorkLease, WorkUnit};
 use crate::event_store::{ConnState, EventStoreCtx};
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
@@ -31,31 +32,9 @@ use leptos::prelude::*;
 /// How often (ms) the REST-backed sections refetch and re-evaluate TTL expiry.
 const POLL_INTERVAL_MS: u32 = 5_000;
 
-/// Last 8 non-hyphen characters of an id string (mirrors `artifacts_panel`'s
-/// `short_id` — same convention across panels).
-fn short_id(id: &str) -> String {
-    let compact: String = id.chars().filter(|&c| c != '-').collect();
-    if compact.len() >= 8 {
-        compact[compact.len() - 8..].to_string()
-    } else {
-        compact
-    }
-}
-
 fn now_ms() -> i64 {
     use chrono::Utc;
     Utc::now().timestamp_millis()
-}
-
-fn ts_millis(ts: Timestamp) -> i64 {
-    let dt: chrono::DateTime<chrono::Utc> = ts.into();
-    dt.timestamp_millis()
-}
-
-fn format_time(ts: Timestamp) -> String {
-    use chrono::Timelike;
-    let dt: chrono::DateTime<chrono::Utc> = ts.into();
-    format!("{:02}:{:02}:{:02}", dt.hour(), dt.minute(), dt.second())
 }
 
 /// Human "time left until `expires_at`" or an "expired Ns ago" past form,

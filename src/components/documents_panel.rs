@@ -19,6 +19,7 @@
 //! needed: `EventStoreCtx.graph_events` already replays full history from
 //! seq 0 on cold start and is already Documents-inclusive.
 
+use super::fmt::format_ts;
 use crate::api;
 use crate::event_store::EventStoreCtx;
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
@@ -36,20 +37,6 @@ fn kind_label(k: DocumentKind) -> &'static str {
 }
 
 // ── Freshness + timestamp formatting ────────────────────────────────────────
-
-fn format_ts(ts: daruma_shared::time::Timestamp) -> String {
-    use chrono::{Datelike, Timelike};
-    let dt: chrono::DateTime<chrono::Utc> = ts.into();
-    format!(
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-        dt.year(),
-        dt.month(),
-        dt.day(),
-        dt.hour(),
-        dt.minute(),
-        dt.second()
-    )
-}
 
 /// Relative "how fresh" label — falls back to an absolute timestamp past a
 /// week, since "42d ago" stops being a useful unit at that point.

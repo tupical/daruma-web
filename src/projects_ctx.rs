@@ -1,8 +1,8 @@
-use leptos::prelude::*;
-use std::collections::HashMap;
 use daruma_domain::Project;
 use daruma_events::{Event, EventEnvelope};
 use daruma_shared::ProjectId;
+use leptos::prelude::*;
+use std::collections::HashMap;
 
 use crate::ws::WsCtx;
 

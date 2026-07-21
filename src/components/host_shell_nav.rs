@@ -1,11 +1,7 @@
+use crate::base::mount_base;
 use crate::host_shell::HostShellSignal;
 use leptos::prelude::*;
-
-fn navigate_to(url: &str) {
-    if let Some(window) = web_sys::window() {
-        let _ = window.location().assign(url);
-    }
-}
+use leptos_router::{hooks::use_navigate, NavigateOptions};
 
 fn current_path() -> String {
     web_sys::window()
@@ -16,23 +12,59 @@ fn current_path() -> String {
 #[component]
 pub fn HostShellNav() -> impl IntoView {
     let config = use_context::<HostShellSignal>();
+    let navigate = use_navigate();
+    let base = mount_base();
+    let graph = format!("{base}/graph");
+    let activity = format!("{base}/activity");
+    let agent_ops = format!("{base}/agent-ops");
+    let time_machine = format!("{base}/time-machine");
+    let tasks = format!("{base}/");
+    let options = || NavigateOptions {
+        resolve: false,
+        ..Default::default()
+    };
 
-    let on_graph = move |_| navigate_to("/graph");
-    let on_activity = move |_| navigate_to("/activity");
-    let on_agent_ops = move |_| navigate_to("/agent-ops");
-    let on_time_machine = move |_| navigate_to("/time-machine");
-    let on_tasks = move |_| navigate_to("/");
+    let on_graph = {
+        let navigate = navigate.clone();
+        let graph = graph.clone();
+        move |_| navigate(&graph, options())
+    };
+    let on_activity = {
+        let navigate = navigate.clone();
+        let activity = activity.clone();
+        move |_| navigate(&activity, options())
+    };
+    let on_agent_ops = {
+        let navigate = navigate.clone();
+        let agent_ops = agent_ops.clone();
+        move |_| navigate(&agent_ops, options())
+    };
+    let on_time_machine = {
+        let navigate = navigate.clone();
+        let time_machine = time_machine.clone();
+        move |_| navigate(&time_machine, options())
+    };
+    let on_tasks = {
+        let navigate = navigate.clone();
+        move |_| navigate(&tasks, options())
+    };
 
-    let is_graph = move || current_path().starts_with("/graph");
-    let is_activity = move || current_path().starts_with("/activity");
-    let is_agent_ops = move || current_path().starts_with("/agent-ops");
-    let is_time_machine = move || current_path().starts_with("/time-machine");
+    let graph_path = graph.clone();
+    let activity_path = activity.clone();
+    let agent_ops_path = agent_ops.clone();
+    let time_machine_path = time_machine.clone();
+    let tasks_paths = (
+        graph.clone(),
+        activity.clone(),
+        agent_ops.clone(),
+        time_machine.clone(),
+    );
 
     view! {
         <div class="host-shell-nav">
             // Graph / Tasks nav buttons — always visible regardless of host shell.
             <button
-                class=move || if is_graph() {
+                class=move || if current_path().starts_with(&graph_path) {
                     "host-shell-nav__link host-shell-nav__link--active"
                 } else {
                     "host-shell-nav__link"
@@ -43,7 +75,7 @@ pub fn HostShellNav() -> impl IntoView {
                 "Graph"
             </button>
             <button
-                class=move || if is_activity() {
+                class=move || if current_path().starts_with(&activity_path) {
                     "host-shell-nav__link host-shell-nav__link--active"
                 } else {
                     "host-shell-nav__link"
@@ -54,7 +86,7 @@ pub fn HostShellNav() -> impl IntoView {
                 "Activity"
             </button>
             <button
-                class=move || if is_agent_ops() {
+                class=move || if current_path().starts_with(&agent_ops_path) {
                     "host-shell-nav__link host-shell-nav__link--active"
                 } else {
                     "host-shell-nav__link"
@@ -65,7 +97,7 @@ pub fn HostShellNav() -> impl IntoView {
                 "Agent Ops"
             </button>
             <button
-                class=move || if is_time_machine() {
+                class=move || if current_path().starts_with(&time_machine_path) {
                     "host-shell-nav__link host-shell-nav__link--active"
                 } else {
                     "host-shell-nav__link"
@@ -76,10 +108,18 @@ pub fn HostShellNav() -> impl IntoView {
                 "Time Machine"
             </button>
             <button
-                class=move || if !is_graph() && !is_activity() && !is_agent_ops() && !is_time_machine() {
-                    "host-shell-nav__link host-shell-nav__link--active"
-                } else {
-                    "host-shell-nav__link"
+                class=move || {
+                    let path = current_path();
+                    let (graph, activity, agent_ops, time_machine) = &tasks_paths;
+                    if !path.starts_with(graph)
+                        && !path.starts_with(activity)
+                        && !path.starts_with(agent_ops)
+                        && !path.starts_with(time_machine)
+                    {
+                        "host-shell-nav__link host-shell-nav__link--active"
+                    } else {
+                        "host-shell-nav__link"
+                    }
                 }
                 type="button"
                 on:click=on_tasks
@@ -104,7 +144,11 @@ pub fn HostShellNav() -> impl IntoView {
                                 <button
                                     class="host-shell-nav__link"
                                     type="button"
-                                    on:click=move |_| navigate_to(&href)
+                                    on:click=move |_| {
+                                        if let Some(window) = web_sys::window() {
+                                            let _ = window.location().assign(&href);
+                                        }
+                                    }
                                 >
                                     "Workspaces"
                                 </button>

@@ -4,11 +4,11 @@
 //! `POST /v1/relations/query`; `TaskRow` reads it to render the
 //! blocker/blocked-by indicator chips in the collapsed row.
 
+use daruma_domain::{Relation, RelationKind};
+use daruma_shared::TaskId;
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use daruma_domain::{Relation, RelationKind};
-use daruma_shared::TaskId;
 
 /// Per-task aggregate counts derived from a flat list of `Relation`s.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]

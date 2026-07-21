@@ -636,6 +636,22 @@ h1 {
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.plan-group__header:hover { background: rgba(83, 155, 245, 0.06); }
+
+.plan-group__header.collapsed { margin-bottom: 0; }
+
+.plan-group__toggle {
+  display: inline-block;
+  width: 1ch;
+  color: var(--muted);
+  font-family: monospace;
 }
 
 .plan-group__label {
@@ -2372,7 +2388,6 @@ h1 {
   background: var(--border);
 }
 
-.tm-controls__spacer { flex: 0 0 0.5rem; }
 
 .tm-slider {
   flex: 1;
@@ -2508,35 +2523,3 @@ h1 {
   background: rgba(83,155,245,0.10);
   border-radius: 4px;
 }
-
-.tm-diff {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.tm-diff__pickers {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  padding: 0.4rem 0.6rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.tm-diff__label {
-  color: var(--accent);
-  font-size: 12px;
-}
-
-.tm-diff__at {
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.tm-diff-row--added { color: var(--done); }
-.tm-diff-row--removed { color: var(--p0); }
-.tm-diff-row--changed { color: var(--accent); }

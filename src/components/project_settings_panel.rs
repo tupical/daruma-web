@@ -120,9 +120,7 @@ pub fn ProjectSettingsPanel() -> impl IntoView {
             let mut s = match api::get_project_settings(&pid).await {
                 Ok(s) => s,
                 Err(err) => {
-                    leptos::logging::log!(
-                        "get_project_settings failed for project={pid}: {err:?}"
-                    );
+                    leptos::logging::log!("get_project_settings failed for project={pid}: {err:?}");
                     error.set(Some(err.friendly()));
                     AutoAppendSettings::default()
                 }
@@ -196,9 +194,7 @@ pub fn ProjectSettingsPanel() -> impl IntoView {
         let patch = field.patch(new_val);
         wasm_bindgen_futures::spawn_local(async move {
             if let Err(err) = api::update_project_settings(&pid, patch).await {
-                leptos::logging::log!(
-                    "update_project_settings failed for project={pid}: {err:?}"
-                );
+                leptos::logging::log!("update_project_settings failed for project={pid}: {err:?}");
                 cache.update(|m| field.set(m.entry(pid.clone()).or_default(), current));
                 error.set(Some(err.friendly()));
             }

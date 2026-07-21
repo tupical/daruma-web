@@ -1,6 +1,6 @@
 use crate::components::{
-    ActivityFeed, AgentOpsPanel, ArtifactsPanel, DocumentsPanel, HostShellNav, PlansPanel,
-    ProjectBar, ProjectSettingsPanel, StatusBar, TaskList, TimeMachine, WorkspaceGraph,
+    ActivityFeed, AgentOpsPanel, ArtifactsPanel, DocumentsPanel, PlansPanel, ProjectSettingsPanel,
+    Shell, TaskList, TimeMachine, WorkspaceGraph,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
@@ -8,10 +8,17 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::hooks::use_params_map;
 use leptos_router::path;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkspaceTab {
+    Tasks,
+    Plans,
+}
+
 #[component]
 pub fn App() -> impl IntoView {
+    let base = crate::base::mount_base();
     view! {
-        <Router>
+        <Router base=base>
             <Routes fallback=|| view! { <WorkspaceApp /> }>
                 <Route path=path!("/graph") view=GraphApp />
                 <Route path=path!("/activity") view=ActivityApp />
@@ -34,73 +41,36 @@ pub fn App() -> impl IntoView {
 #[component]
 fn GraphApp() -> impl IntoView {
     view! {
-        <div class="app app--graph">
-            <div class="header">
-                <div class="header-row">
-                    <div class="viewer-title">"Daruma OSS Viewer"</div>
-                    <HostShellNav />
-                </div>
-            </div>
-            <main class="main main--graph">
-                <WorkspaceGraph />
-            </main>
-            <StatusBar />
-        </div>
+        <Shell app_class="app app--graph" main_class="main main--graph">
+            <WorkspaceGraph />
+        </Shell>
     }
 }
 
 #[component]
 fn ActivityApp() -> impl IntoView {
     view! {
-        <div class="app app--activity">
-            <div class="header">
-                <div class="header-row">
-                    <div class="viewer-title">"Daruma OSS Viewer"</div>
-                    <HostShellNav />
-                </div>
-            </div>
-            <main class="main main--activity">
-                <ActivityFeed />
-            </main>
-            <StatusBar />
-        </div>
+        <Shell app_class="app app--activity" main_class="main main--activity">
+            <ActivityFeed />
+        </Shell>
     }
 }
 
 #[component]
 fn AgentOpsApp() -> impl IntoView {
     view! {
-        <div class="app app--agent-ops">
-            <div class="header">
-                <div class="header-row">
-                    <div class="viewer-title">"Daruma OSS Viewer"</div>
-                    <HostShellNav />
-                </div>
-                <ProjectBar />
-            </div>
-            <main class="main main--agent-ops">
-                <AgentOpsPanel />
-            </main>
-            <StatusBar />
-        </div>
+        <Shell app_class="app app--agent-ops" main_class="main main--agent-ops" project_bar=true>
+            <AgentOpsPanel />
+        </Shell>
     }
 }
 
 #[component]
 fn TimeMachineApp() -> impl IntoView {
     view! {
-        <div class="app app--time-machine">
-            <div class="header">
-                <div class="header-row">
-                    <div class="viewer-title">"Daruma OSS Viewer"</div>
-                    <HostShellNav />
-                </div>
-            </div>
-            <main class="main main--time-machine">
-                <TimeMachine />
-            </main>
-            <StatusBar />
-        </div>
+        <Shell app_class="app app--time-machine" main_class="main main--time-machine">
+            <TimeMachine />
+        </Shell>
     }
 }
 
@@ -108,6 +78,7 @@ fn TimeMachineApp() -> impl IntoView {
 fn WorkspaceApp() -> impl IntoView {
     let ctx = use_context::<ProjectsCtx>().expect("ProjectsCtx");
     let params = use_params_map();
+    let tab = RwSignal::new(WorkspaceTab::Tasks);
 
     Effect::new(move |_| {
         let map = params.get();
@@ -120,25 +91,37 @@ fn WorkspaceApp() -> impl IntoView {
         }
     });
 
+    let aside = view! {
+        <aside class="plans-aside">
+            <DocumentsPanel />
+            <ArtifactsPanel />
+            <ProjectSettingsPanel />
+        </aside>
+    }
+    .into_any();
+
     view! {
-        <div class="app">
-            <div class="header">
-                <div class="header-row">
-                    <div class="viewer-title">"Daruma OSS Viewer"</div>
-                    <HostShellNav />
-                </div>
-                <ProjectBar />
+        <Shell app_class="app" main_class="main" project_bar=true aside=aside>
+            <div class="project-bar workspace-view-tabs">
+                <button
+                    type="button"
+                    class=move || if tab.get() == WorkspaceTab::Tasks { "tab active" } else { "tab" }
+                    on:click=move |_| tab.set(WorkspaceTab::Tasks)
+                >
+                    "Задачи"
+                </button>
+                <button
+                    type="button"
+                    class=move || if tab.get() == WorkspaceTab::Plans { "tab active" } else { "tab" }
+                    on:click=move |_| tab.set(WorkspaceTab::Plans)
+                >
+                    "Планы"
+                </button>
             </div>
-            <main class="main">
-                <TaskList />
-            </main>
-            <aside class="plans-aside">
-                <PlansPanel />
-                <DocumentsPanel />
-                <ArtifactsPanel />
-                <ProjectSettingsPanel />
-            </aside>
-            <StatusBar />
-        </div>
+            {move || match tab.get() {
+                WorkspaceTab::Tasks => view! { <TaskList /> }.into_any(),
+                WorkspaceTab::Plans => view! { <PlansPanel /> }.into_any(),
+            }}
+        </Shell>
     }
 }

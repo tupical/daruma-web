@@ -3,6 +3,7 @@ use leptos::prelude::*;
 mod api;
 mod app;
 mod auth;
+mod base;
 mod components;
 mod event_store;
 mod host_shell;

@@ -1,12 +1,13 @@
+use super::fmt;
 use crate::api;
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::ws::WsCtx;
-use leptos::prelude::*;
-use std::collections::{HashMap, HashSet};
-use daruma_domain::{Actor, Plan, PlanPatch, PlanStatus, Status};
+use daruma_domain::{Actor, Plan, PlanPatch, PlanStatus};
 use daruma_events::{Channel, Event, EventEnvelope};
 use daruma_shared::time::Timestamp;
 use daruma_shared::TaskId;
+use leptos::prelude::*;
+use std::collections::{HashMap, HashSet};
 
 const PLAN_GROUP_ORDER: &[PlanStatus] = &[
     PlanStatus::Active,
@@ -110,6 +111,7 @@ fn apply_plan_event(env: &EventEnvelope, list: &mut Vec<Plan>, project_id: &str)
 
 // ── Tree data structure ───────────────────────────────────────────────────────
 
+#[derive(Clone)]
 struct PlanTreeNode {
     plan: Plan,
     children: Vec<PlanTreeNode>,
@@ -172,41 +174,9 @@ fn group_roots_by_status(roots: Vec<PlanTreeNode>) -> Vec<(PlanStatus, Vec<PlanT
 // client-side from the graph (cheap: plan task counts are small, and it's
 // only computed once per fetch, not per render).
 
-/// Task-status pill, reusing exactly the class names task_list.rs/task_row.rs
-/// use for `Task.status` — `PlanGraphNode.status` is the same `Status` enum,
-/// so the existing `.status-*` colors apply with no new CSS.
-fn task_status_class(status: Status) -> &'static str {
-    match status {
-        Status::Inbox => "status status-inbox",
-        Status::Todo => "status status-todo",
-        Status::InProgress => "status status-in-progress",
-        Status::InReview => "status status-in-review",
-        Status::Done => "status status-done",
-        Status::Cancelled => "status status-cancelled",
-    }
-}
-
-fn task_status_label(status: Status) -> &'static str {
-    match status {
-        Status::Inbox => "Inbox",
-        Status::Todo => "Todo",
-        Status::InProgress => "In Progress",
-        Status::InReview => "In Review",
-        Status::Done => "Done",
-        Status::Cancelled => "Cancelled",
-    }
-}
-
-/// Last 8 non-hyphen characters of an id string (same convention as
-/// `task_row.rs`'s `short_id` / `artifacts_panel.rs`'s copy of it).
-fn short_id(id: &str) -> String {
-    let compact: String = id.chars().filter(|&c| c != '-').collect();
-    if compact.len() >= 8 {
-        compact[compact.len() - 8..].to_string()
-    } else {
-        compact
-    }
-}
+/// Task-status pill class/label come from `super::fmt` — `PlanGraphNode.status`
+/// is the same `Status` enum task_list.rs/task_row.rs use, so the existing
+/// `.status-*` colors apply with no new CSS.
 
 /// Longest dependency chain through the graph (unweighted — number of hops),
 /// as a set for O(1) "is this task on the critical path" lookups. `edges`
@@ -399,11 +369,11 @@ fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
                 <div class=row_class>
                     <span class="plan-graph-node__pos">{n.position}</span>
                     <span class="plan-graph-node__title">{n.title.clone()}</span>
-                    <span class=task_status_class(n.status)>{task_status_label(n.status)}</span>
+                    <span class=fmt::status_class(n.status)>{fmt::status_label(n.status)}</span>
                     <span class="plan-graph-node__deps">
                         { if deps > 0 { format!("depends on {deps}") } else { String::new() } }
                     </span>
-                    <span class="plan-graph-node__id">{format!("#{}", short_id(&n.task_id.to_string()))}</span>
+                    <span class="plan-graph-node__id">{format!("#{}", fmt::short_id(&n.task_id.to_string()))}</span>
                 </div>
             }
             .into_any()
@@ -428,7 +398,7 @@ fn task_chip(node: &api::PlanGraphNode, is_critical: bool) -> AnyView {
         "plan-graph-task-chip"
     };
     view! {
-        <span class=class title=task_status_label(node.status).to_string()>
+        <span class=class title=fmt::status_label(node.status).to_string()>
             {node.title.clone()}
         </span>
     }
@@ -463,27 +433,12 @@ fn run_status_label(status: api::RunStatus) -> &'static str {
 }
 
 /// "user" or the agent's display name — same convention as
-/// `activity_feed.rs`'s private `actor_label`, copied rather than shared
-/// (small enough, same tolerance as `short_id`).
+/// `activity_feed.rs`'s private `actor_label`, copied rather than shared.
 fn actor_label(actor: &Actor) -> String {
     match actor {
         Actor::User => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
     }
-}
-
-fn format_ts(ts: Timestamp) -> String {
-    use chrono::{Datelike, Timelike};
-    let dt: chrono::DateTime<chrono::Utc> = ts.into();
-    format!(
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-        dt.year(),
-        dt.month(),
-        dt.day(),
-        dt.hour(),
-        dt.minute(),
-        dt.second()
-    )
 }
 
 /// Task title if the plan's dependency graph happens to be loaded already
@@ -505,7 +460,7 @@ fn resolve_task_title(
                 .find(|n| n.task_id == task_id)
                 .map(|n| n.title.clone())
         })
-        .unwrap_or_else(|| format!("#{}", short_id(&task_id.to_string())))
+        .unwrap_or_else(|| format!("#{}", fmt::short_id(&task_id.to_string())))
 }
 
 fn outcome_badge(outcome: &Option<api::RunOutcome>) -> AnyView {
@@ -574,8 +529,8 @@ fn render_run_timeline(
         .iter()
         .map(|step| {
             let task_id = step.task_id;
-            let started = format_ts(step.started_at);
-            let finished = step.finished_at.map(format_ts);
+            let started = fmt::format_ts(step.started_at);
+            let finished = step.finished_at.map(fmt::format_ts);
             let outcome = step.outcome.clone();
             let time_range = match finished {
                 Some(f) => format!("{started} → {f}"),
@@ -601,7 +556,7 @@ fn render_run_timeline(
             let meta = format!(
                 "{} · {}",
                 actor_label(&note.author),
-                format_ts(note.created_at)
+                fmt::format_ts(note.created_at)
             );
             let body = note.body.clone();
             view! {
@@ -657,10 +612,10 @@ fn RunRowView(
         }
     });
 
-    let agent = short_id(&run.agent_id.to_string());
+    let agent = fmt::short_id(&run.agent_id.to_string());
     let status = run.status;
-    let started = format_ts(run.started_at);
-    let last_activity = run.last_activity_at.map(format_ts);
+    let started = fmt::format_ts(run.started_at);
+    let last_activity = run.last_activity_at.map(fmt::format_ts);
 
     view! {
         <li class="plan-run-row-wrapper">
@@ -900,6 +855,8 @@ pub fn PlansPanel() -> impl IntoView {
     let ws_ctx = use_context::<WsCtx>().expect("WsCtx");
     let current_filter = projects_ctx.current_filter;
     let ws_events = ws_ctx.events;
+    let collapsed: RwSignal<HashSet<&'static str>> =
+        RwSignal::new(HashSet::from(["completed", "abandoned"]));
 
     // Derive project_id from filter — only Some when Of(pid).
     let project_id_opt = Memo::new(move |_| match current_filter.get() {
@@ -1077,23 +1034,43 @@ pub fn PlansPanel() -> impl IntoView {
                                             .into_iter()
                                             .map(|(status, group_nodes)| {
                                                 let count = group_nodes.len();
-                                                let header_class = format!(
-                                                    "plan-group__header plan-group__header--{}",
-                                                    plan_group_slug(status),
+                                                let slug = plan_group_slug(status);
+                                                let is_collapsed = move || collapsed.get().contains(slug);
+                                                let toggle = move |_| {
+                                                    collapsed.update(|set| {
+                                                        if !set.insert(slug) { set.remove(slug); }
+                                                    });
+                                                };
+                                                let header_class = move || format!(
+                                                    "plan-group__header plan-group__header--{}{}",
+                                                    slug,
+                                                    if is_collapsed() { " collapsed" } else { "" },
                                                 );
-                                                let nodes: Vec<AnyView> = group_nodes
-                                                    .into_iter()
-                                                    .map(|node| plan_node_view(node, 0, graph_refresh, runs_refresh))
-                                                    .collect();
                                                 view! {
                                                     <section class="plan-group">
-                                                        <div class=header_class>
+                                                        <button
+                                                            class=header_class
+                                                            type="button"
+                                                            on:click=toggle
+                                                            aria-expanded=move || (!is_collapsed()).to_string()
+                                                        >
+                                                            <span class="plan-group__toggle">
+                                                                {move || if is_collapsed() { "▸" } else { "▾" }}
+                                                            </span>
                                                             <span class="plan-group__label">
                                                                 {plan_group_label(status)}
                                                             </span>
                                                             <span class="plan-group__count">{count}</span>
-                                                        </div>
-                                                        {nodes}
+                                                        </button>
+                                                        <Show when=move || !is_collapsed() fallback=|| view! { <></> }>
+                                                            {let group_nodes = group_nodes.clone(); move || {
+                                                                group_nodes
+                                                                    .clone()
+                                                                    .into_iter()
+                                                                    .map(|node| plan_node_view(node, 0, graph_refresh, runs_refresh))
+                                                                    .collect_view()
+                                                            }}
+                                                        </Show>
                                                     </section>
                                                 }
                                                 .into_any()

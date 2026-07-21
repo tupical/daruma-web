@@ -3,11 +3,11 @@ use crate::api;
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::relations_ctx::RelationsCtx;
 use crate::ws::WsCtx;
-use leptos::prelude::*;
-use std::collections::{HashMap, HashSet};
 use daruma_domain::{NewTask, Priority, Status, Task, TaskPatch};
 use daruma_events::{Event, EventEnvelope};
 use daruma_shared::{time::Timestamp, ProjectId, TaskId};
+use leptos::prelude::*;
+use std::collections::{HashMap, HashSet};
 use wasm_bindgen_futures::spawn_local;
 
 /// Display order for status groups. Groups missing from `tasks` are skipped.
