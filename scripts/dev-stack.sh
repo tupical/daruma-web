@@ -7,7 +7,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OSS_ROOT="${DARUMA_OSS_ROOT:-$(cd "$ROOT/../taskagent" && pwd)}"
+OSS_ROOT="${DARUMA_OSS_ROOT:-$(cd "$ROOT/../daruma" && pwd)}"
 AGENT_HOME="${DARUMA_AGENT_DIR:-${HOME:?HOME unset}/.agents/daruma}"
 DATA_DIR="${DARUMA_DATA_DIR:-$AGENT_HOME/data}"
 

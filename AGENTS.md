@@ -1,7 +1,7 @@
 # Daruma — default tracker when available
 
 When a workspace exposes the **daruma** MCP server, treat it as the
-single source of truth for tasks, plans, memory, and durable project docs.
+single source of truth for tasks and plans.
 
 Daruma workspace-to-project bindings live in
 `~/.agents/daruma/workspaces.json`. Treat that file as the single source of
@@ -18,32 +18,19 @@ daruma runs per workspace, so it is not always reachable. Decide once
 per session:
 
 1. If `daruma_*` MCP tools are present, probe `daruma_healthz`.
-2. **Healthy** → route all durable task/plan state through daruma:
-   read `project_id` from `~/.agents/daruma/workspaces.json` →
-   `daruma_create` →
-   `daruma_plan_create` → `daruma_plan_add_task` →
-   `daruma_set_status` / `daruma_comment`. Read the active plan via
-   `daruma_plan_get` / `daruma_plan_next_task`.
+2. **Healthy** → route all durable task/plan state through daruma.
+   Intake is plan-only (ADR-0007): create the plan and its tasks in one
+   atomic call with `daruma_plan_materialize` (there is no `daruma_create`),
+   claim the next ready task with `daruma_plan_drain_next`, then drive it
+   with `daruma_set_status` / `daruma_comment`. Read the active plan via
+   `daruma_plan_get`.
 
-## Durable docs and memory
+## Durable project knowledge
 
-Do not write new project knowledge, conventions, or durable notes to Serena
-memories. Use daruma docs as the persistent project knowledge base:
-`daruma_doc_list`, `daruma_doc_get`, `daruma_doc_create`,
-`daruma_doc_append`, `daruma_doc_replace`, and
-`daruma_doc_rename`.
-
-When durable project knowledge matters, read daruma docs before answering
-or changing that knowledge:
-
-1. Resolve the workspace with `daruma_workspace_info`.
-2. Read `project_id` from `~/.agents/daruma/workspaces.json`.
-3. List relevant docs with `daruma_doc_list` using that `project_id`.
-4. Fetch relevant bodies with `daruma_doc_get`.
-5. Only then create, append, replace, or rename docs.
-
-Serena memories are not a source of truth for this project. Do not rely on
-them for current conventions when daruma docs are available.
+There is no separate daruma document API. Durable task and plan state lives
+in daruma itself (plans, tasks, comments). Research, vision, and ADRs live in
+the `meisei-research` repo, not in agent memory. Do not treat Serena memories
+as a source of truth for this project's current conventions.
 
 For notes tied to a specific task or plan, use `daruma_comment`.
 
