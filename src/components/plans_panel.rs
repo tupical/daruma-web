@@ -471,9 +471,6 @@ pub(crate) fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
         .flat_map(|w| w.tasks.iter().copied())
         .collect();
 
-    let flow = plan_flow_layout(&bundle.graph.nodes, &bundle.graph.edges);
-    let flow_view = render_plan_flow(&flow, &bundle.graph, &critical, &ready_now);
-
     // The wave list used to sit under this: same information the columns now
     // carry, in a second encoding. The only part it said that the columns don't
     // is "claimable right now", and that is the accent outline on wave-0 boxes.
@@ -481,10 +478,126 @@ pub(crate) fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
     view! {
         <div class="plan-graph">
             { summary.map(|s| view! { <div class="plan-graph-summary">{s}</div> }) }
-            { flow_view }
+            <PlanFlowCanvas
+                graph=bundle.graph.clone()
+                critical=critical
+                ready_now=ready_now
+            />
         </div>
     }
     .into_any()
+}
+
+/// Client coordinates expressed relative to the canvas element the handler is
+/// bound to. Falls back to the raw point if the target is not an element.
+fn canvas_offset(target: Option<web_sys::EventTarget>, client_x: i32, client_y: i32) -> (f64, f64) {
+    use wasm_bindgen::JsCast;
+    match target.and_then(|t| t.dyn_into::<web_sys::Element>().ok()) {
+        Some(el) => {
+            let rect = el.get_bounding_client_rect();
+            (client_x as f64 - rect.left(), client_y as f64 - rect.top())
+        }
+        None => (client_x as f64, client_y as f64),
+    }
+}
+
+/// Pan/zoom viewport around the flow diagram.
+///
+/// A fixed box with scrollbars caps how much of a plan you can take in at once
+/// and forces two-axis scrolling to follow one chain. This is a window onto an
+/// unbounded field instead: drag to move, wheel to zoom about the cursor. The
+/// diagram's own coordinates never change — only the transform on top of them —
+/// so the layout stays the deterministic thing it was.
+#[component]
+fn PlanFlowCanvas(
+    graph: api::PlanGraph,
+    critical: HashSet<TaskId>,
+    ready_now: HashSet<TaskId>,
+) -> impl IntoView {
+    let flow = plan_flow_layout(&graph.nodes, &graph.edges);
+    let content = render_plan_flow(&flow, &graph, &critical, &ready_now);
+
+    // (scale, translate_x, translate_y)
+    let view_box: RwSignal<(f64, f64, f64)> = RwSignal::new((1.0, 0.0, 0.0));
+    // Pointer position at the last drag sample, in client coordinates.
+    let drag_from: RwSignal<Option<(f64, f64)>> = RwSignal::new(None);
+
+    let on_pointer_down = move |ev: web_sys::PointerEvent| {
+        if ev.button() != 0 {
+            return;
+        }
+        drag_from.set(Some((ev.client_x() as f64, ev.client_y() as f64)));
+    };
+    let on_pointer_move = move |ev: web_sys::PointerEvent| {
+        let Some((lx, ly)) = drag_from.get_untracked() else {
+            return;
+        };
+        let (x, y) = (ev.client_x() as f64, ev.client_y() as f64);
+        view_box.update(|(_, tx, ty)| {
+            *tx += x - lx;
+            *ty += y - ly;
+        });
+        drag_from.set(Some((x, y)));
+    };
+    let on_pointer_up = move |_: web_sys::PointerEvent| drag_from.set(None);
+
+    let on_wheel = move |ev: web_sys::WheelEvent| {
+        ev.prevent_default();
+        // Zoom about the cursor: the point under it must not move, so the
+        // translation absorbs the scale change around that anchor.
+        //
+        // The anchor is measured against the canvas, not `offset_x` — that is
+        // relative to whatever child the pointer happens to be over, so zooming
+        // with the cursor on a task box would anchor inside that box and make
+        // the diagram jump.
+        let (ax, ay) = canvas_offset(ev.current_target(), ev.client_x(), ev.client_y());
+        view_box.update(|(k, tx, ty)| {
+            let factor = if ev.delta_y() < 0.0 { 1.1 } else { 1.0 / 1.1 };
+            let next = (*k * factor).clamp(0.2, 3.0);
+            let applied = next / *k;
+            *tx = ax - (ax - *tx) * applied;
+            *ty = ay - (ay - *ty) * applied;
+            *k = next;
+        });
+    };
+
+    view! {
+        <div class="plan-flow">
+            <button
+                class="plan-flow__reset btn-ghost btn-sm"
+                type="button"
+                title="Reset pan and zoom"
+                on:click=move |_| view_box.set((1.0, 0.0, 0.0))
+            >
+                "⊞ Reset"
+            </button>
+            <svg
+                class="plan-flow__svg"
+                class:plan-flow__svg--dragging=move || drag_from.get().is_some()
+                on:pointerdown=on_pointer_down
+                on:pointermove=on_pointer_move
+                on:pointerup=on_pointer_up
+                on:pointerleave=on_pointer_up
+                on:wheel=on_wheel
+            >
+                <defs>
+                    <marker
+                        id="plan-flow-arrow"
+                        markerWidth="7" markerHeight="7"
+                        refX="6" refY="3.5" orient="auto"
+                    >
+                        <path d="M0,0 L7,3.5 L0,7 z" class="plan-flow__arrowhead" />
+                    </marker>
+                </defs>
+                <g transform=move || {
+                    let (k, tx, ty) = view_box.get();
+                    format!("translate({tx},{ty}) scale({k})")
+                }>
+                    {content}
+                </g>
+            </svg>
+        </div>
+    }
 }
 
 /// The plan as a left-to-right flow: one column per dependency rank, one box
@@ -565,27 +678,13 @@ fn render_plan_flow(
         })
         .collect();
 
+    // Content only — `PlanFlowCanvas` owns the <svg>, its <defs> and the
+    // pan/zoom transform this sits inside.
     view! {
-        <div class="plan-flow">
-            <svg
-                class="plan-flow__svg"
-                width=flow.width
-                height=flow.height
-                viewBox=format!("0 0 {} {}", flow.width, flow.height)
-            >
-                <defs>
-                    <marker
-                        id="plan-flow-arrow"
-                        markerWidth="7" markerHeight="7"
-                        refX="6" refY="3.5" orient="auto"
-                    >
-                        <path d="M0,0 L7,3.5 L0,7 z" class="plan-flow__arrowhead" />
-                    </marker>
-                </defs>
-                {edge_views}
-                {box_views}
-            </svg>
-        </div>
+        <>
+            {edge_views}
+            {box_views}
+        </>
     }
     .into_any()
 }

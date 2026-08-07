@@ -35,6 +35,9 @@ uuid = { version = "1.10", features = ["v4", "v7", "serde", "js"] }
 web-sys = { version = "0.3", features = [
   "Window", "Storage", "Location", "Navigator", "Clipboard",
   "Crypto", "SubtleCrypto", "History", "RequestCredentials",
+  # `DomRect` unlocks Element::get_bounding_client_rect — the plan-flow canvas
+  # needs the cursor position relative to itself to zoom about that point.
+  "DomRect",
 ] }
 
 # OSS crates. Release builds should pin these to a Daruma git tag; this
