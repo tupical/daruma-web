@@ -25,14 +25,13 @@ pub struct ProjectsCtx {
     pub projects_error: RwSignal<Option<String>>,
 }
 
-/// Route segments as the router sees them — i.e. with the mount base
-/// (`/web`, `/app`) removed. Reading `location.pathname()` raw made the mount
-/// segment masquerade as the workspace slug, so `/web/` and `/web/web`
-/// resolved to different projects and every project click pushed another
-/// `/web` onto the URL.
+/// Route segments as the router sees them — i.e. with the mount base (`/web`)
+/// removed. Reading `location.pathname()` raw made the mount segment
+/// masquerade as the workspace slug, so `/web/` and `/web/web` resolved to
+/// different projects and every project click pushed another `/web` onto the
+/// URL. `/app` is deliberately *not* a mount base — see `base.rs`.
 fn route_segments(path: &str, base: &str) -> Vec<String> {
-    path.strip_prefix(base)
-        .unwrap_or(path)
+    crate::base::strip_base(path, base)
         .trim_matches('/')
         .split('/')
         .filter(|s| !s.is_empty())
@@ -215,6 +214,16 @@ mod tests {
         // The old raw-pathname read saw ["web"] here and called it a workspace.
         assert_eq!(route_segments("/web/web", "/web"), ["web"]);
         assert_eq!(route_segments("/acme/api", ""), ["acme", "api"]);
+        // `/app` survives stripping — it is a route, and the segment after it
+        // is the project.
+        assert_eq!(
+            route_segments("/app/mcpbox-cloud", ""),
+            ["app", "mcpbox-cloud"]
+        );
+        assert_eq!(
+            route_segments("/web/app/mcpbox-cloud", "/web"),
+            ["app", "mcpbox-cloud"]
+        );
     }
 
     #[test]
