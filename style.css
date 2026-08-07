@@ -22,8 +22,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 2rem 1rem;
+  padding: 2rem 1.5rem;
 }
 
 h1 {
@@ -33,12 +32,56 @@ h1 {
   margin-bottom: 1.5rem;
 }
 
-/* App layout */
+/* App layout — every view spans the full window; the old per-view
+   `max-width: 720px` / `max-width: 100%` overrides made each section a
+   different width. */
 .app {
   width: 100%;
-  max-width: 720px;
   display: flex;
   flex-direction: column;
+}
+
+/* Project rail (left) + routed content (right). */
+.app-body {
+  display: flex;
+  align-items: stretch;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Routed view + its right-rail panels share one column, so the aside lines up
+   with `main` instead of starting under the project rail. */
+.app-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-rail {
+  flex: 0 0 14rem;
+  /* Without this the rail refuses to shrink below its longest project title
+     and eats the content column. */
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
+}
+
+.project-rail .project-bar {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  margin: 0;
+}
+
+.project-rail .tab {
+  border-radius: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header {
@@ -141,7 +184,6 @@ h1 {
 /* Plans panel */
 .plans-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -216,7 +258,6 @@ h1 {
 .task-groups {
   display: block;
   width: 100%;
-  max-width: 720px;
 }
 
 .task-groups-empty {
@@ -233,7 +274,6 @@ h1 {
 
 .task-groups-error {
   width: 100%;
-  max-width: 720px;
 }
 
 /* Actionable fetch-failure message — shared across task list / plans /
@@ -305,7 +345,6 @@ h1 {
 .task-list {
   display: block;
   width: 100%;
-  max-width: 720px;
   list-style: none;
   padding: 0;
   margin: 0 0 0.25rem 0;
@@ -389,18 +428,29 @@ h1 {
 .status-in-progress { color: var(--accent); }
 .status-done     { color: var(--done); }
 
-/* Actor chips */
+/* Actor chips — a pill, not a circle: the feed and time machine put the full
+   actor name in here ("user", "claude-opus-5"), which a fixed 1.35rem circle
+   clipped and knocked the row out of alignment. A single-character label
+   (documents panel) still reads as a circle thanks to the min-width. */
 .actor-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
+  flex-shrink: 0;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  max-width: 10rem;
+  padding: 0 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   line-height: 1;
-  border-radius: 50%;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
+  color: var(--accent);
+  text-transform: uppercase;
   cursor: help;
 }
 
@@ -985,7 +1035,6 @@ h1 {
 
 .documents-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -1119,17 +1168,6 @@ h1 {
 .narrative-block__author { color: var(--text); }
 .narrative-block__time { margin-left: auto; font-variant-numeric: tabular-nums; }
 
-.actor-chip {
-  display: inline-grid;
-  place-items: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--accent);
-  text-transform: uppercase;
-}
-
 .narrative-block__body {
   margin-top: 0.35rem;
   white-space: pre-wrap;
@@ -1175,7 +1213,6 @@ h1 {
 
 .project-settings-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -1228,7 +1265,6 @@ h1 {
 
 .artifacts-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -1523,9 +1559,11 @@ h1 {
 .feed-load-older-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* Feed entries */
+/* `center`, not `baseline`: the row mixes 11px text with fixed-height chips
+   and badges, and baseline alignment let each one sit at its own offset. */
 .feed-entry {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.2rem 0.25rem;
   border-radius: 3px;
@@ -1657,7 +1695,6 @@ h1 {
 
 /* ── WorkspaceGraph ─────────────────────────────────────────────────────────── */
 
-.app--graph { max-width: 100%; }
 
 .main--graph { width: 100%; }
 
@@ -1924,6 +1961,25 @@ h1 {
     white-space: normal;
   }
 
+  /* Project rail: no room for a side column — back to wrapping chips above
+     the content. */
+  .app-body {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .project-rail {
+    flex: 0 0 auto;
+    width: 100%;
+    position: static;
+  }
+
+  .project-rail .project-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 0.5rem 0 1rem;
+  }
+
   /* Project bar tabs — bigger tap targets. */
   .project-bar .tab {
     padding: 0.45rem 0.85rem;
@@ -2046,7 +2102,6 @@ h1 {
 
 /* ── Agent Operations (VIZ-5) ───────────────────────────────────────────── */
 
-.app--agent-ops { max-width: 100%; }
 .main--agent-ops { width: 100%; }
 
 .agent-ops {
@@ -2310,7 +2365,6 @@ h1 {
 
 /* ── Time Machine (VIZ-8) ──────────────────────────────────────────────────── */
 
-.app--time-machine { max-width: 100%; }
 
 .main--time-machine { width: 100%; }
 
