@@ -30,6 +30,16 @@ fn ws_status_view(status: &WsStatus) -> (&'static str, String) {
     }
 }
 
+/// How far the workspace graph trails the event stream, or `None` when the
+/// graph is already at (or ahead of) the seq the WS handshake reported.
+///
+/// `then_some` evaluated `seq - last` eagerly, so a graph ahead of the socket
+/// — routine right after connect, before the first Hello raises `server_seq` —
+/// underflowed `u64` and panicked, taking the whole WASM module down.
+fn graph_lag_value(seq: u64, last: u64) -> Option<i64> {
+    (seq >= last).then(|| (seq - last) as i64)
+}
+
 /// One fetch pass: healthz always, workspacegraph status best-effort (the
 /// same endpoint the graph view already relies on, so a viewer token that
 /// can render `/graph` can read this too). Either failing just leaves the
@@ -46,7 +56,7 @@ async fn poll_once(
     if let Ok(status) = api::workspacegraph_status().await {
         if let Some(last) = status.last_event_seq {
             let seq = server_seq.get_untracked();
-            graph_lag.set((seq >= last).then_some((seq - last) as i64));
+            graph_lag.set(graph_lag_value(seq, last));
         }
     }
 }
@@ -112,5 +122,18 @@ pub fn StatusBar() -> impl IntoView {
                 })
             }}
         </footer>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::graph_lag_value;
+
+    #[test]
+    fn graph_lag_is_none_when_graph_is_ahead_of_the_socket() {
+        assert_eq!(graph_lag_value(10, 4), Some(6));
+        assert_eq!(graph_lag_value(4, 4), Some(0));
+        // Used to panic with "attempt to subtract with overflow".
+        assert_eq!(graph_lag_value(0, 17), None);
     }
 }

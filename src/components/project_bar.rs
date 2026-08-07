@@ -11,8 +11,12 @@ pub fn ProjectBar() -> impl IntoView {
     let projects_error = ctx.projects_error;
     let navigate = use_navigate();
 
+    // Navigate only — `WorkspaceApp`'s route effect is the single writer of
+    // `current_filter`. Setting it here too pushed an update into a subtree
+    // the very next `navigate` was about to dispose (`/` and `/app/:project?`
+    // are different route matches), and the panels read the disposed memos
+    // mid-flush: "you tried to access a reactive value … already disposed".
     let select_filter = Callback::new(move |filter: ProjectFilter| {
-        current_filter.set(filter.clone());
         let path = canonical_path(&workspace_slug.get(), &filter, &projects.get());
         navigate(&path, Default::default());
     });
