@@ -358,25 +358,6 @@ pub struct GraphNeighborhood {
 }
 
 #[derive(Clone, Debug, serde::Deserialize)]
-pub struct GraphContextItem {
-    pub node: GraphNode,
-    pub edge: GraphEdge,
-    pub direction: GraphDirection,
-}
-
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, Eq)]
-pub enum GraphDirection {
-    Incoming,
-    Outgoing,
-}
-
-#[derive(Clone, Debug, serde::Deserialize)]
-pub struct GraphSearchHit {
-    pub node: GraphNode,
-    pub score: f64,
-}
-
-#[derive(Clone, Debug, serde::Deserialize)]
 pub struct GraphStatus {
     pub schema_version: u32,
     pub node_count: u64,
@@ -390,64 +371,6 @@ pub struct GraphStatus {
 /// `GET /v1/workspacegraph/status`
 pub async fn workspacegraph_status() -> Result<GraphStatus, ApiError> {
     get_json(&format!("{API_BASE}/v1/workspacegraph/status")).await
-}
-
-/// `GET /v1/workspacegraph/context?node_id=…&limit=…`
-pub async fn workspacegraph_context(
-    node_id: &str,
-    limit: u32,
-) -> Result<Vec<GraphContextItem>, ApiError> {
-    let url = format!(
-        "{API_BASE}/v1/workspacegraph/context?node_id={}&limit={}",
-        urlencoding_simple(node_id),
-        limit
-    );
-    get_json(&url).await
-}
-
-/// `GET /v1/workspacegraph/related?node_id=…&depth=…&limit=…`
-pub async fn workspacegraph_related(
-    node_id: &str,
-    depth: u32,
-    limit: u32,
-) -> Result<GraphNeighborhood, ApiError> {
-    let url = format!(
-        "{API_BASE}/v1/workspacegraph/related?node_id={}&depth={}&limit={}",
-        urlencoding_simple(node_id),
-        depth,
-        limit
-    );
-    get_json(&url).await
-}
-
-/// `GET /v1/workspacegraph/search?query=…&limit=…[&project_id=…]`
-pub async fn workspacegraph_search(
-    query: &str,
-    limit: u32,
-    project_id: Option<&str>,
-) -> Result<Vec<GraphSearchHit>, ApiError> {
-    let mut url = format!(
-        "{API_BASE}/v1/workspacegraph/search?query={}&limit={}",
-        urlencoding_simple(query),
-        limit
-    );
-    if let Some(pid) = project_id {
-        url.push_str(&format!("&project_id={}", urlencoding_simple(pid)));
-    }
-    get_json(&url).await
-}
-
-/// `GET /v1/workspacegraph/impact?node_id=…&limit=…`
-pub async fn workspacegraph_impact(
-    node_id: &str,
-    limit: u32,
-) -> Result<GraphNeighborhood, ApiError> {
-    let url = format!(
-        "{API_BASE}/v1/workspacegraph/impact?node_id={}&limit={}",
-        urlencoding_simple(node_id),
-        limit
-    );
-    get_json(&url).await
 }
 
 /// Percent-encode a query-parameter value without pulling in a URL library.

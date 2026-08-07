@@ -1,6 +1,6 @@
 use crate::components::{
-    ActivityFeed, AgentOpsPanel, ArtifactsPanel, DocumentsPanel, PlansPanel, ProjectSettingsPanel,
-    Shell, TaskList, TimeMachine, WorkspaceGraph,
+    ActivityFeed, AgentOpsPanel, ArtifactsPanel, CompositionMap, DocumentsPanel, PlansPanel,
+    ProjectSettingsPanel, Shell, TaskList, TimeMachine,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
@@ -42,7 +42,7 @@ pub fn App() -> impl IntoView {
 fn GraphApp() -> impl IntoView {
     view! {
         <Shell app_class="app app--graph" main_class="main main--graph" project_bar=true>
-            <WorkspaceGraph />
+            <CompositionMap />
         </Shell>
     }
 }

@@ -407,7 +407,7 @@ fn critical_path(nodes: &[api::PlanGraphNode], edges: &[api::PlanGraphEdge]) -> 
 }
 
 #[derive(Clone)]
-struct PlanGraphBundle {
+pub(crate) struct PlanGraphBundle {
     graph: api::PlanGraph,
     waves: Vec<api::PlanFanoutWave>,
     progress: Option<api::PlanProgressSummary>,
@@ -416,7 +416,7 @@ struct PlanGraphBundle {
 /// Cancel-on-cleanup: reads component-owned signals after the await, so a
 /// plain spawn would panic if the route is disposed mid-fetch. See
 /// task_list.rs for the full rationale.
-fn spawn_graph_fetch(
+pub(crate) fn spawn_graph_fetch(
     plan_id: String,
     graph_data: RwSignal<Option<Result<PlanGraphBundle, String>>>,
 ) {
@@ -426,7 +426,7 @@ fn spawn_graph_fetch(
     });
 }
 
-async fn fetch_plan_graph_bundle(plan_id: &str) -> Result<PlanGraphBundle, String> {
+pub(crate) async fn fetch_plan_graph_bundle(plan_id: &str) -> Result<PlanGraphBundle, String> {
     let graph = api::plan_graph(plan_id).await.map_err(|e| e.friendly())?;
     let waves = api::plan_fanout(plan_id).await.map_err(|e| e.friendly())?;
     // Best-effort: a summary line is a nice-to-have, not worth failing the
@@ -439,7 +439,7 @@ async fn fetch_plan_graph_bundle(plan_id: &str) -> Result<PlanGraphBundle, Strin
     })
 }
 
-fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
+pub(crate) fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
     if bundle.graph.nodes.is_empty() {
         return view! {
             <p class="plan-graph-empty">"No tasks in this plan yet."</p>
