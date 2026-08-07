@@ -1,5 +1,5 @@
-//! Shared page skeleton for the top-level views: header (title + host nav,
-//! optional project bar), main content, optional aside, status footer.
+//! Shared page skeleton for the top-level views: header (title + host nav),
+//! a left project rail, main content, optional aside, status footer.
 
 use crate::components::{HostShellNav, ProjectBar, StatusBar};
 use leptos::prelude::*;
@@ -16,7 +16,7 @@ pub fn Shell(
     /// `main` class, e.g. "main main--graph".
     #[prop(into)]
     main_class: String,
-    /// Render the <ProjectBar /> under the header row.
+    /// Render the <ProjectBar /> as the left rail next to `main`.
     #[prop(optional)]
     project_bar: bool,
     /// Optional aside rendered between main and the status bar.
@@ -31,10 +31,18 @@ pub fn Shell(
                     <div class="viewer-title">"Daruma OSS Viewer"</div>
                     <HostShellNav />
                 </div>
-                {project_bar.then(|| view! { <ProjectBar /> })}
             </div>
-            <main class=main_class>{children()}</main>
-            {aside}
+            <div class="app-body">
+                {project_bar.then(|| view! {
+                    <nav class="project-rail">
+                        <ProjectBar />
+                    </nav>
+                })}
+                <div class="app-content">
+                    <main class=main_class>{children()}</main>
+                    {aside}
+                </div>
+            </div>
             <StatusBar />
         </div>
     }

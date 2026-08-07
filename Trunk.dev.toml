@@ -8,6 +8,12 @@
 [build]
 public_url = "/"
 
+# Without this the watcher fires on `.omc/` runtime state (agent hooks write it
+# continuously) and on its own `dist/`, so `trunk serve` rebuilds in a loop and
+# autoreload yanks the page out from under you every few seconds.
+[watch]
+ignore = [".omc", "dist", "target"]
+
 [serve]
 addresses = ["127.0.0.1"]
 port = 5174

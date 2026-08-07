@@ -25,16 +25,24 @@ pub struct ProjectsCtx {
     pub projects_error: RwSignal<Option<String>>,
 }
 
+/// Route segments as the router sees them — i.e. with the mount base (`/web`)
+/// removed. Reading `location.pathname()` raw made the mount segment
+/// masquerade as the workspace slug, so `/web/` and `/web/web` resolved to
+/// different projects and every project click pushed another `/web` onto the
+/// URL. `/app` is deliberately *not* a mount base — see `base.rs`.
+fn route_segments(path: &str, base: &str) -> Vec<String> {
+    crate::base::strip_base(path, base)
+        .trim_matches('/')
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
 fn current_path_segments() -> Vec<String> {
     web_sys::window()
         .and_then(|w| w.location().pathname().ok())
-        .map(|p| {
-            p.trim_matches('/')
-                .split('/')
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect()
-        })
+        .map(|p| route_segments(&p, &crate::base::mount_base()))
         .unwrap_or_default()
 }
 
@@ -198,6 +206,25 @@ pub fn init_projects_ctx() -> ProjectsCtx {
 mod tests {
     use super::*;
     use daruma_domain::Actor;
+
+    #[test]
+    fn route_segments_drop_the_mount_base() {
+        assert_eq!(route_segments("/web/", "/web"), Vec::<String>::new());
+        assert_eq!(route_segments("/web/acme/api", "/web"), ["acme", "api"]);
+        // The old raw-pathname read saw ["web"] here and called it a workspace.
+        assert_eq!(route_segments("/web/web", "/web"), ["web"]);
+        assert_eq!(route_segments("/acme/api", ""), ["acme", "api"]);
+        // `/app` survives stripping — it is a route, and the segment after it
+        // is the project.
+        assert_eq!(
+            route_segments("/app/mcpbox-cloud", ""),
+            ["app", "mcpbox-cloud"]
+        );
+        assert_eq!(
+            route_segments("/web/app/mcpbox-cloud", "/web"),
+            ["app", "mcpbox-cloud"]
+        );
+    }
 
     #[test]
     fn apply_project_event_creates_idempotently_updates_and_deletes() {

@@ -16,10 +16,18 @@ Prerequisites:
 ```bash
 # vendor/oss is a git submodule of github.com/tupical/daruma
 sh scripts/link-oss.sh        # wraps: git submodule update --init vendor/oss
-NO_COLOR=false trunk serve --config Trunk.dev.toml
+env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
+  NO_COLOR=false trunk serve --config Trunk.dev.toml
 ```
 
 Open `http://127.0.0.1:5174/`.
+
+Drop the proxy variables: Trunk's `[[proxy]]` backend calls honour `HTTP_PROXY`
+but not glob `no_proxy` entries like `127.*`, so with a local proxy running
+every `/v1/*` request leaves the machine and comes back as somebody else's
+`404`. It surfaces in the browser console as `[ws] catch-up failed: HTTP 404`
+with an nginx error page in the body — a dev-environment artifact, not an app
+bug.
 
 ## Build
 

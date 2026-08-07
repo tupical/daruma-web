@@ -1,12 +1,12 @@
 use crate::components::{
-    ActivityFeed, AgentOpsPanel, ArtifactsPanel, DocumentsPanel, PlansPanel, ProjectSettingsPanel,
-    Shell, TaskList, TimeMachine, WorkspaceGraph,
+    ActivityFeed, AgentOpsPanel, ArtifactsPanel, CompositionMap, DocumentsPanel, PlansPanel,
+    ProjectSettingsPanel, Shell, TaskList, TimeMachine,
 };
 use crate::projects_ctx::{resolve_filter, ProjectsCtx};
 use leptos::prelude::*;
 use leptos_router::components::{Route, Router, Routes};
-use leptos_router::hooks::use_params_map;
-use leptos_router::path;
+use leptos_router::hooks::{use_navigate, use_params_map};
+use leptos_router::{path, NavigateOptions};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WorkspaceTab {
@@ -41,8 +41,8 @@ pub fn App() -> impl IntoView {
 #[component]
 fn GraphApp() -> impl IntoView {
     view! {
-        <Shell app_class="app app--graph" main_class="main main--graph">
-            <WorkspaceGraph />
+        <Shell app_class="app app--graph" main_class="main main--graph" project_bar=true>
+            <CompositionMap />
         </Shell>
     }
 }
@@ -79,9 +79,26 @@ fn WorkspaceApp() -> impl IntoView {
     let ctx = use_context::<ProjectsCtx>().expect("ProjectsCtx");
     let params = use_params_map();
     let tab = RwSignal::new(WorkspaceTab::Tasks);
+    let navigate = use_navigate();
 
     Effect::new(move |_| {
         let map = params.get();
+        // Bare "/" (and "/app") is a *different* route match from
+        // "/app/:project?", so the first project click swaps route subtrees —
+        // and Leptos flushes the outgoing panels' render effects after their
+        // owner is already disposed ("you tried to access a reactive value …
+        // already disposed"). Land on the canonical form up front so every
+        // later switch is a param change within one match.
+        if map.get("workspace").is_none() && map.get("project").is_none() {
+            navigate(
+                "/app/all",
+                NavigateOptions {
+                    replace: true,
+                    ..Default::default()
+                },
+            );
+            return;
+        }
         if let Some(seg) = map.get("project").filter(|s| !s.is_empty()) {
             ctx.current_filter
                 .set(resolve_filter(seg.as_str(), &ctx.projects.get()));

@@ -22,8 +22,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 2rem 1rem;
+  padding: 2rem 1.5rem;
 }
 
 h1 {
@@ -33,12 +32,56 @@ h1 {
   margin-bottom: 1.5rem;
 }
 
-/* App layout */
+/* App layout — every view spans the full window; the old per-view
+   `max-width: 720px` / `max-width: 100%` overrides made each section a
+   different width. */
 .app {
   width: 100%;
-  max-width: 720px;
   display: flex;
   flex-direction: column;
+}
+
+/* Project rail (left) + routed content (right). */
+.app-body {
+  display: flex;
+  align-items: stretch;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Routed view + its right-rail panels share one column, so the aside lines up
+   with `main` instead of starting under the project rail. */
+.app-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-rail {
+  flex: 0 0 14rem;
+  /* Without this the rail refuses to shrink below its longest project title
+     and eats the content column. */
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
+  align-self: flex-start;
+}
+
+.project-rail .project-bar {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  margin: 0;
+}
+
+.project-rail .tab {
+  border-radius: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header {
@@ -141,7 +184,6 @@ h1 {
 /* Plans panel */
 .plans-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -216,7 +258,6 @@ h1 {
 .task-groups {
   display: block;
   width: 100%;
-  max-width: 720px;
 }
 
 .task-groups-empty {
@@ -233,7 +274,6 @@ h1 {
 
 .task-groups-error {
   width: 100%;
-  max-width: 720px;
 }
 
 /* Actionable fetch-failure message — shared across task list / plans /
@@ -305,7 +345,6 @@ h1 {
 .task-list {
   display: block;
   width: 100%;
-  max-width: 720px;
   list-style: none;
   padding: 0;
   margin: 0 0 0.25rem 0;
@@ -389,18 +428,29 @@ h1 {
 .status-in-progress { color: var(--accent); }
 .status-done     { color: var(--done); }
 
-/* Actor chips */
+/* Actor chips — a pill, not a circle: the feed and time machine put the full
+   actor name in here ("user", "claude-opus-5"), which a fixed 1.35rem circle
+   clipped and knocked the row out of alignment. A single-character label
+   (documents panel) still reads as a circle thanks to the min-width. */
 .actor-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
+  flex-shrink: 0;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  max-width: 10rem;
+  padding: 0 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   line-height: 1;
-  border-radius: 50%;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
+  color: var(--accent);
+  text-transform: uppercase;
   cursor: help;
 }
 
@@ -766,44 +816,85 @@ h1 {
   margin-bottom: 0.5rem;
 }
 
-.plan-graph-waves {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0.6rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px dashed var(--border);
-}
-
-.plan-graph-wave {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.plan-graph-wave__label {
-  flex: 0 0 auto;
-  color: var(--muted);
-  min-width: 4.5rem;
-}
-
-.plan-graph-wave__tasks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.plan-graph-task-chip {
-  padding: 0.1rem 0.45rem;
+/* ── Plan flow diagram ──────────────────────────────────────────────────────
+   One column per dependency rank, left to right. The box is a window onto an
+   unbounded field — drag to pan, wheel to zoom — rather than a scroll frame:
+   a plan can be far wider and taller than any sensible viewport, and two-axis
+   scrolling to follow one dependency chain is worse than moving the field. */
+.plan-flow {
+  position: relative;
+  width: 100%;
+  height: 60vh;
+  min-height: 20rem;
+  overflow: hidden;
+  margin: 0.5rem 0 0.75rem;
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: help;
+  border-radius: 6px;
 }
-.plan-graph-task-chip--critical {
-  border-color: var(--p1);
-  color: var(--p1);
+
+.plan-flow__reset {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+}
+
+.plan-flow__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  /* Dragging across labels must not start a text selection. */
+  user-select: none;
+  touch-action: none;
+}
+.plan-flow__svg--dragging { cursor: grabbing; }
+
+.plan-flow__edge {
+  fill: none;
+  stroke: #3d444d;
+  stroke-width: 1.2;
+}
+.plan-flow__edge--critical { stroke: var(--p1); stroke-width: 1.8; }
+.plan-flow__arrowhead { fill: #3d444d; }
+
+.plan-flow__box {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.plan-flow__node--critical .plan-flow__box { stroke: var(--p1); }
+/* Claimable right now — the one thing you look for in a running plan. */
+.plan-flow__node--ready .plan-flow__box {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.plan-flow__title {
+  fill: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.plan-flow__status {
+  font-family: inherit;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* SVG text takes `fill`, not `color`, so the `.status-*` rules don't apply. */
+.plan-flow__status.status-inbox       { fill: var(--muted); }
+.plan-flow__status.status-todo        { fill: var(--text); }
+.plan-flow__status.status-in-progress { fill: var(--accent); }
+.plan-flow__status.status-in-review   { fill: #a371f7; }
+.plan-flow__status.status-done        { fill: var(--done); }
+.plan-flow__status.status-cancelled   { fill: var(--p0); }
+
+.plan-flow__id {
+  fill: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
 }
 
 .plan-graph-nodes {
@@ -985,7 +1076,6 @@ h1 {
 
 .documents-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -1119,17 +1209,6 @@ h1 {
 .narrative-block__author { color: var(--text); }
 .narrative-block__time { margin-left: auto; font-variant-numeric: tabular-nums; }
 
-.actor-chip {
-  display: inline-grid;
-  place-items: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--accent);
-  text-transform: uppercase;
-}
-
 .narrative-block__body {
   margin-top: 0.35rem;
   white-space: pre-wrap;
@@ -1175,7 +1254,6 @@ h1 {
 
 .project-settings-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -1228,7 +1306,6 @@ h1 {
 
 .artifacts-panel {
   width: 100%;
-  max-width: 720px;
   margin-top: 2rem;
 }
 
@@ -1523,9 +1600,11 @@ h1 {
 .feed-load-older-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* Feed entries */
+/* `center`, not `baseline`: the row mixes 11px text with fixed-height chips
+   and badges, and baseline alignment let each one sit at its own offset. */
 .feed-entry {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
   padding: 0.2rem 0.25rem;
   border-radius: 3px;
@@ -1655,211 +1734,123 @@ h1 {
   border-color: var(--accent);
 }
 
-/* ── WorkspaceGraph ─────────────────────────────────────────────────────────── */
+/* ── Composition map ───────────────────────────────────────────────────────
+   Projects hold plans; a plan opens in place into its flow diagram. Nothing
+   floats, nothing is positioned by a simulation — the DOM is the layout. */
 
-.app--graph { max-width: 100%; }
-
-.main--graph { width: 100%; }
-
-.workspace-graph-container {
+.composition-map {
   display: flex;
   flex-direction: column;
+  gap: 1.25rem;
   width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
 }
 
-.workspace-graph-toolbar {
+.composition-map__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.35rem;
+}
+
+.composition-map__title {
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.composition-map__hint,
+.composition-project__loading {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.composition-map__empty {
+  color: var(--muted);
+  padding: 1.5rem 0;
+}
+
+.composition-project__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.composition-project__title {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.composition-project__count {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.composition-plans {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.composition-plan {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+}
+.composition-plan--active    { border-left-color: var(--done); }
+.composition-plan--draft     { border-left-color: var(--p2); }
+.composition-plan--completed { border-left-color: var(--muted); }
+.composition-plan--abandoned { border-left-color: var(--p0); }
+.composition-plan--open { background: var(--bg); }
+
+.composition-plan__head {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.workspace-graph-toolbar__title {
-  color: var(--accent);
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  margin-right: 0.5rem;
-}
-
-.workspace-graph-body {
-  display: flex;
-  flex-direction: row;
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
   width: 100%;
-  min-height: 620px;
-  position: relative;
+}
+.composition-plan__head:hover { color: var(--accent); }
+
+.composition-plan__chevron {
+  color: var(--muted);
+  flex: 0 0 auto;
+  width: 0.8rem;
 }
 
-.workspace-graph-svg {
+.composition-plan__title {
   flex: 1;
   min-width: 0;
-  background: var(--bg);
-  display: block;
-}
-
-.workspace-graph-loading,
-.workspace-graph-error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 3rem;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.workspace-graph-error { color: var(--p0); }
-
-/* Filter chips */
-.graph-filter-bar {
-  display: flex;
-  gap: 0.3rem;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.graph-filter-chip {
-  appearance: none;
-  background: transparent;
-  border: 1px solid;
-  border-radius: 999px;
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  padding: 0.1rem 0.55rem;
-  transition: opacity 0.15s;
-}
-
-.graph-filter-chip:hover { opacity: 0.8 !important; }
-
-/* Generic ghost / small buttons */
-.btn-ghost {
-  appearance: none;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted);
-  cursor: pointer;
-  font: inherit;
-  padding: 0.2rem 0.6rem;
-  transition: border-color 0.1s, color 0.1s;
-}
-
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-
-.btn-sm { font-size: 11px; padding: 0.15rem 0.5rem; }
-
-.btn-impact { border-color: var(--p0); color: var(--p0); }
-.btn-impact:hover { border-color: var(--p0); color: var(--p0); opacity: 0.8; }
-
-/* Node details panel */
-.node-details-panel {
-  width: 240px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-  overflow-y: auto;
-  padding: 0.75rem;
-}
-
-.node-details-panel__inner {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.node-details-panel__header {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.node-details-panel__kind-badge {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #fff;
-  border-radius: 999px;
-  padding: 0.1rem 0.5rem;
-  flex-shrink: 0;
-}
-
-.node-details-panel__title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  flex: 1;
-  min-width: 0;
-  word-break: break-word;
-}
-
-.node-details-panel__close {
-  appearance: none;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 0.2rem;
-  flex-shrink: 0;
-}
-
-.node-details-panel__close:hover { color: var(--text); }
-
-.node-details-panel__text {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 8rem;
-  overflow-y: auto;
-  border-top: 1px dashed var(--border);
-  padding-top: 0.4rem;
-}
-
-.node-details-panel__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.node-details-panel__meta-item {
-  font-size: 11px;
-  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.node-details-panel__meta-label { color: var(--text); opacity: 0.6; }
-
-/* Empty graph state */
-.workspace-graph-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 4rem 2rem;
+.composition-plan__status {
   color: var(--muted);
-  font-size: 14px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.workspace-graph-empty__hint {
-  font-size: 12px;
-  opacity: 0.6;
+.composition-plan__body {
+  padding: 0 0.6rem 0.5rem;
 }
 
 /* Status bar — compact, read-only footer (WS state + API healthz). */
@@ -1924,6 +1915,25 @@ h1 {
     white-space: normal;
   }
 
+  /* Project rail: no room for a side column — back to wrapping chips above
+     the content. */
+  .app-body {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .project-rail {
+    flex: 0 0 auto;
+    width: 100%;
+    position: static;
+  }
+
+  .project-rail .project-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 0.5rem 0 1rem;
+  }
+
   /* Project bar tabs — bigger tap targets. */
   .project-bar .tab {
     padding: 0.45rem 0.85rem;
@@ -1981,11 +1991,6 @@ h1 {
   /* Plan dependency graph: wave label above its chips instead of a fixed
      min-width label squeezing them; node rows drop title to its own line,
      same treatment as task-row/artifact-row. */
-  .plan-graph-wave {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
-  }
   .plan-graph-node {
     flex-wrap: wrap;
     row-gap: 0.2rem;
@@ -2046,7 +2051,6 @@ h1 {
 
 /* ── Agent Operations (VIZ-5) ───────────────────────────────────────────── */
 
-.app--agent-ops { max-width: 100%; }
 .main--agent-ops { width: 100%; }
 
 .agent-ops {
@@ -2310,7 +2314,6 @@ h1 {
 
 /* ── Time Machine (VIZ-8) ──────────────────────────────────────────────────── */
 
-.app--time-machine { max-width: 100%; }
 
 .main--time-machine { width: 100%; }
 
