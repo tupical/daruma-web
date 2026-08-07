@@ -41,7 +41,7 @@ pub fn App() -> impl IntoView {
 #[component]
 fn GraphApp() -> impl IntoView {
     view! {
-        <Shell app_class="app app--graph" main_class="main main--graph">
+        <Shell app_class="app app--graph" main_class="main main--graph" project_bar=true>
             <WorkspaceGraph />
         </Shell>
     }

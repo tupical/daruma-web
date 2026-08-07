@@ -178,6 +178,183 @@ fn group_roots_by_status(roots: Vec<PlanTreeNode>) -> Vec<(PlanStatus, Vec<PlanT
 /// is the same `Status` enum task_list.rs/task_row.rs use, so the existing
 /// `.status-*` colors apply with no new CSS.
 
+// ── Flow layout ──────────────────────────────────────────────────────────────
+//
+// Geometry of the plan diagram. A column is one dependency rank, a row is one
+// task. Everything is derived from the data — same plan, same picture, every
+// time — because a layout that moves between loads is unreadable no matter how
+// few nodes it has.
+
+const FLOW_COL_PITCH: f64 = 200.0;
+const FLOW_BOX_W: f64 = 168.0;
+const FLOW_BOX_H: f64 = 44.0;
+const FLOW_ROW_PITCH: f64 = 60.0;
+const FLOW_PAD: f64 = 14.0;
+/// Characters that fit in a box at 11px monospace.
+const FLOW_TITLE_CHARS: usize = 22;
+
+/// One placed task box.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FlowBox {
+    pub task_id: TaskId,
+    pub rank: usize,
+    pub row: usize,
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Deterministic left-to-right layout of a plan's task DAG.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PlanFlow {
+    pub boxes: Vec<FlowBox>,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl PlanFlow {
+    fn place(&self, id: TaskId) -> Option<&FlowBox> {
+        self.boxes.iter().find(|b| b.task_id == id)
+    }
+}
+
+/// Rank every task by its longest dependency chain, then order within each rank
+/// so that a task sits near the tasks it depends on.
+///
+/// Ranking by longest path (not by the server's fanout waves) on purpose: waves
+/// only cover *remaining* work, so a half-done plan would lose the shape of
+/// everything already finished. Ordering uses the median predecessor row — one
+/// pass of the standard crossing-reduction heuristic, which is the difference
+/// between a diagram and a bundle of diagonals once a plan has any fan-in.
+pub fn plan_flow_layout(nodes: &[api::PlanGraphNode], edges: &[api::PlanGraphEdge]) -> PlanFlow {
+    if nodes.is_empty() {
+        return PlanFlow::default();
+    }
+    let ranks = dependency_ranks(nodes, edges);
+    let preds = predecessors(nodes, edges);
+
+    let max_rank = ranks.values().copied().max().unwrap_or(0);
+    let mut rows_of: HashMap<TaskId, usize> = HashMap::new();
+    let mut boxes: Vec<FlowBox> = Vec::with_capacity(nodes.len());
+    let mut widest_rank = 0usize;
+
+    for rank in 0..=max_rank {
+        let mut in_rank: Vec<&api::PlanGraphNode> = nodes
+            .iter()
+            .filter(|n| ranks.get(&n.task_id).copied().unwrap_or(0) == rank)
+            .collect();
+
+        // Median of already-placed predecessor rows; `position` breaks ties and
+        // orders the first column, so the result is fully determined.
+        in_rank.sort_by(|a, b| {
+            let key = |n: &api::PlanGraphNode| {
+                let mut prows: Vec<usize> = preds
+                    .get(&n.task_id)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|p| rows_of.get(p).copied())
+                    .collect();
+                prows.sort_unstable();
+                prows.get(prows.len() / 2).copied()
+            };
+            key(a)
+                .cmp(&key(b))
+                .then_with(|| a.position.cmp(&b.position))
+                .then_with(|| a.task_id.cmp(&b.task_id))
+        });
+
+        widest_rank = widest_rank.max(in_rank.len());
+        for (row, n) in in_rank.iter().enumerate() {
+            rows_of.insert(n.task_id, row);
+            boxes.push(FlowBox {
+                task_id: n.task_id,
+                rank,
+                row,
+                x: FLOW_PAD + rank as f64 * FLOW_COL_PITCH,
+                y: FLOW_PAD + row as f64 * FLOW_ROW_PITCH,
+            });
+        }
+    }
+
+    PlanFlow {
+        width: FLOW_PAD * 2.0 + max_rank as f64 * FLOW_COL_PITCH + FLOW_BOX_W,
+        height: FLOW_PAD * 2.0 + widest_rank.saturating_sub(1) as f64 * FLOW_ROW_PITCH + FLOW_BOX_H,
+        boxes,
+    }
+}
+
+/// blocker -> blocked adjacency, restricted to tasks present in the graph.
+fn predecessors(
+    nodes: &[api::PlanGraphNode],
+    edges: &[api::PlanGraphEdge],
+) -> HashMap<TaskId, Vec<TaskId>> {
+    let node_ids: HashSet<TaskId> = nodes.iter().map(|n| n.task_id).collect();
+    let mut preds: HashMap<TaskId, Vec<TaskId>> = HashMap::new();
+    for e in edges {
+        if node_ids.contains(&e.from) && node_ids.contains(&e.to) {
+            preds.entry(e.to).or_default().push(e.from);
+        }
+    }
+    // `depends_on` on the node itself is the same relation from the other side;
+    // the server fills both, and a task missing from `edges` must still rank
+    // behind its blockers.
+    for n in nodes {
+        let entry = preds.entry(n.task_id).or_default();
+        for dep in &n.depends_on {
+            if node_ids.contains(dep) && !entry.contains(dep) {
+                entry.push(*dep);
+            }
+        }
+    }
+    for v in preds.values_mut() {
+        v.sort_unstable();
+    }
+    preds
+}
+
+/// 0-based longest-path depth per task. Cycle-safe (see `critical_path`).
+fn dependency_ranks(
+    nodes: &[api::PlanGraphNode],
+    edges: &[api::PlanGraphEdge],
+) -> HashMap<TaskId, usize> {
+    let preds = predecessors(nodes, edges);
+    let mut memo = HashMap::new();
+    let mut visiting = HashSet::new();
+    nodes
+        .iter()
+        .map(|n| {
+            (
+                n.task_id,
+                longest_to(n.task_id, &preds, &mut memo, &mut visiting) - 1,
+            )
+        })
+        .collect()
+}
+
+/// Longest chain ending at `id`, counting `id` itself (so a root is 1).
+fn longest_to(
+    id: TaskId,
+    preds: &HashMap<TaskId, Vec<TaskId>>,
+    memo: &mut HashMap<TaskId, usize>,
+    visiting: &mut HashSet<TaskId>,
+) -> usize {
+    if let Some(&cached) = memo.get(&id) {
+        return cached;
+    }
+    if !visiting.insert(id) {
+        return 0; // cycle guard — shouldn't happen for a well-formed DAG
+    }
+    let best = preds
+        .get(&id)
+        .into_iter()
+        .flatten()
+        .map(|&p| longest_to(p, preds, memo, visiting))
+        .max()
+        .unwrap_or(0);
+    visiting.remove(&id);
+    memo.insert(id, best + 1);
+    best + 1
+}
+
 /// Longest dependency chain through the graph (unweighted — number of hops),
 /// as a set for O(1) "is this task on the critical path" lookups. `edges`
 /// point blocker -> blocked (both `depends_on` and `blocks` share that
@@ -187,36 +364,7 @@ fn group_roots_by_status(roots: Vec<PlanTreeNode>) -> Vec<(PlanStatus, Vec<PlanT
 /// stack-overflowing the tab.
 fn critical_path(nodes: &[api::PlanGraphNode], edges: &[api::PlanGraphEdge]) -> HashSet<TaskId> {
     let node_ids: HashSet<TaskId> = nodes.iter().map(|n| n.task_id).collect();
-    let mut preds: HashMap<TaskId, Vec<TaskId>> = HashMap::new();
-    for e in edges {
-        if node_ids.contains(&e.from) && node_ids.contains(&e.to) {
-            preds.entry(e.to).or_default().push(e.from);
-        }
-    }
-
-    fn longest_to(
-        id: TaskId,
-        preds: &HashMap<TaskId, Vec<TaskId>>,
-        memo: &mut HashMap<TaskId, usize>,
-        visiting: &mut HashSet<TaskId>,
-    ) -> usize {
-        if let Some(&cached) = memo.get(&id) {
-            return cached;
-        }
-        if !visiting.insert(id) {
-            return 0; // cycle guard — shouldn't happen for a well-formed DAG
-        }
-        let best = preds
-            .get(&id)
-            .into_iter()
-            .flatten()
-            .map(|&p| longest_to(p, preds, memo, visiting))
-            .max()
-            .unwrap_or(0);
-        visiting.remove(&id);
-        memo.insert(id, best + 1);
-        best + 1
-    }
+    let preds = predecessors(nodes, edges);
 
     let mut memo = HashMap::new();
     let mut visiting = HashSet::new();
@@ -302,13 +450,6 @@ fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
     let critical = critical_path(&bundle.graph.nodes, &bundle.graph.edges);
     let node_by_id: HashMap<TaskId, &api::PlanGraphNode> =
         bundle.graph.nodes.iter().map(|n| (n.task_id, n)).collect();
-    let deps_count: HashMap<TaskId, usize> = bundle
-        .graph
-        .nodes
-        .iter()
-        .map(|n| (n.task_id, n.depends_on.len()))
-        .collect();
-
     let summary = bundle.progress.as_ref().map(|p| {
         let next = p
             .next_ready
@@ -321,88 +462,154 @@ fn render_plan_graph(bundle: &PlanGraphBundle) -> AnyView {
         )
     });
 
-    let waves_view: Option<AnyView> = if bundle.waves.is_empty() {
-        None
-    } else {
-        let wave_rows: Vec<AnyView> = bundle
-            .waves
-            .iter()
-            .map(|w| {
-                let chips: Vec<AnyView> = w
-                    .tasks
-                    .iter()
-                    .filter_map(|id| node_by_id.get(id))
-                    .map(|n| task_chip(n, critical.contains(&n.task_id)))
-                    .collect();
-                view! {
-                    <div class="plan-graph-wave">
-                        <span class="plan-graph-wave__label">{format!("Wave {}", w.wave)}</span>
-                        <div class="plan-graph-wave__tasks">{chips}</div>
-                    </div>
-                }
-                .into_any()
-            })
-            .collect();
-        Some(
-            view! {
-                <div class="plan-graph-waves">{wave_rows}</div>
-            }
-            .into_any(),
-        )
-    };
-
-    // Full task list (position order) — waves only cover *remaining* work,
-    // so this is what still shows the shape of an already-completed plan.
-    let mut nodes_sorted: Vec<&api::PlanGraphNode> = bundle.graph.nodes.iter().collect();
-    nodes_sorted.sort_by_key(|n| n.position);
-    let node_rows: Vec<AnyView> = nodes_sorted
-        .into_iter()
-        .map(|n| {
-            let is_critical = critical.contains(&n.task_id);
-            let row_class = if is_critical {
-                "plan-graph-node plan-graph-node--critical"
-            } else {
-                "plan-graph-node"
-            };
-            let deps = deps_count.get(&n.task_id).copied().unwrap_or(0);
-            view! {
-                <div class=row_class>
-                    <span class="plan-graph-node__pos">{n.position}</span>
-                    <span class="plan-graph-node__title">{n.title.clone()}</span>
-                    <span class=fmt::status_class(n.status)>{fmt::status_label(n.status)}</span>
-                    <span class="plan-graph-node__deps">
-                        { if deps > 0 { format!("depends on {deps}") } else { String::new() } }
-                    </span>
-                    <span class="plan-graph-node__id">{format!("#{}", fmt::short_id(&n.task_id.to_string()))}</span>
-                </div>
-            }
-            .into_any()
-        })
+    // Ready-now set: fanout wave 0 is what can be claimed immediately. Marked
+    // on the diagram rather than listed separately.
+    let ready_now: HashSet<TaskId> = bundle
+        .waves
+        .iter()
+        .filter(|w| w.wave == 0)
+        .flat_map(|w| w.tasks.iter().copied())
         .collect();
+
+    let flow = plan_flow_layout(&bundle.graph.nodes, &bundle.graph.edges);
+    let flow_view = render_plan_flow(&flow, &bundle.graph, &critical, &ready_now);
+
+    // The wave list used to sit under this: same information the columns now
+    // carry, in a second encoding. The only part it said that the columns don't
+    // is "claimable right now", and that is the accent outline on wave-0 boxes.
 
     view! {
         <div class="plan-graph">
             { summary.map(|s| view! { <div class="plan-graph-summary">{s}</div> }) }
-            { waves_view }
-            <div class="plan-graph-nodes">{node_rows}</div>
+            { flow_view }
         </div>
     }
     .into_any()
 }
 
-/// One task chip inside a wave — compact, just title + status + critical marker.
-fn task_chip(node: &api::PlanGraphNode, is_critical: bool) -> AnyView {
-    let class = if is_critical {
-        "plan-graph-task-chip plan-graph-task-chip--critical"
-    } else {
-        "plan-graph-task-chip"
-    };
+/// The plan as a left-to-right flow: one column per dependency rank, one box
+/// per task, orthogonal arrows for `depends_on`.
+///
+/// Hand-rolled SVG, no graph-visualization dependency: the layout is a sort and
+/// two arithmetic expressions, and every coordinate comes from the data, so the
+/// picture is stable across loads.
+fn render_plan_flow(
+    flow: &PlanFlow,
+    graph: &api::PlanGraph,
+    critical: &HashSet<TaskId>,
+    ready_now: &HashSet<TaskId>,
+) -> AnyView {
+    if flow.boxes.is_empty() {
+        return view! { <></> }.into_any();
+    }
+    let node_by_id: HashMap<TaskId, &api::PlanGraphNode> =
+        graph.nodes.iter().map(|n| (n.task_id, n)).collect();
+
+    // Edges first so boxes paint over the arrowheads' tails.
+    let mut seen: HashSet<(TaskId, TaskId)> = HashSet::new();
+    let edge_views: Vec<AnyView> = graph
+        .edges
+        .iter()
+        .filter(|e| seen.insert((e.from, e.to)))
+        .filter_map(|e| {
+            let from = flow.place(e.from)?;
+            let to = flow.place(e.to)?;
+            let sx = from.x + FLOW_BOX_W;
+            let sy = from.y + FLOW_BOX_H / 2.0;
+            let ex = to.x;
+            let ey = to.y + FLOW_BOX_H / 2.0;
+            // Elbow halfway between the columns — right angles read as a
+            // diagram; straight diagonals read as the web we just left.
+            let mx = (sx + ex) / 2.0;
+            let d = format!("M {sx} {sy} H {mx} V {ey} H {ex}");
+            let on_critical = critical.contains(&e.from) && critical.contains(&e.to);
+            let class = if on_critical {
+                "plan-flow__edge plan-flow__edge--critical"
+            } else {
+                "plan-flow__edge"
+            };
+            Some(view! { <path class=class d=d marker-end="url(#plan-flow-arrow)" /> }.into_any())
+        })
+        .collect();
+
+    let box_views: Vec<AnyView> = flow
+        .boxes
+        .iter()
+        .filter_map(|b| {
+            let n = node_by_id.get(&b.task_id)?;
+            let mut class = String::from("plan-flow__node");
+            if critical.contains(&b.task_id) {
+                class.push_str(" plan-flow__node--critical");
+            }
+            if ready_now.contains(&b.task_id) {
+                class.push_str(" plan-flow__node--ready");
+            }
+            let short = fmt::short_id(&b.task_id.to_string());
+            let tooltip = format!("{} · {} · #{short}", n.title, fmt::status_label(n.status));
+            let title = truncate_chars(&n.title, FLOW_TITLE_CHARS);
+            let status_class = format!("plan-flow__status status-{}", status_slug(n.status));
+            Some(
+                view! {
+                    <g class=class transform=format!("translate({},{})", b.x, b.y)>
+                        <title>{tooltip}</title>
+                        <rect class="plan-flow__box" width=FLOW_BOX_W height=FLOW_BOX_H rx="5" />
+                        <text class="plan-flow__title" x="9" y="18">{title}</text>
+                        <text class=status_class x="9" y="33">{fmt::status_label(n.status)}</text>
+                        <text class="plan-flow__id" x=FLOW_BOX_W - 9.0 y="33" text-anchor="end">
+                            {format!("#{short}")}
+                        </text>
+                    </g>
+                }
+                .into_any(),
+            )
+        })
+        .collect();
+
     view! {
-        <span class=class title=fmt::status_label(node.status).to_string()>
-            {node.title.clone()}
-        </span>
+        <div class="plan-flow">
+            <svg
+                class="plan-flow__svg"
+                width=flow.width
+                height=flow.height
+                viewBox=format!("0 0 {} {}", flow.width, flow.height)
+            >
+                <defs>
+                    <marker
+                        id="plan-flow-arrow"
+                        markerWidth="7" markerHeight="7"
+                        refX="6" refY="3.5" orient="auto"
+                    >
+                        <path d="M0,0 L7,3.5 L0,7 z" class="plan-flow__arrowhead" />
+                    </marker>
+                </defs>
+                {edge_views}
+                {box_views}
+            </svg>
+        </div>
     }
     .into_any()
+}
+
+/// CSS-friendly discriminant for a task status.
+fn status_slug(status: daruma_domain::Status) -> &'static str {
+    use daruma_domain::Status;
+    match status {
+        Status::Inbox => "inbox",
+        Status::Todo => "todo",
+        Status::InProgress => "in-progress",
+        Status::InReview => "in-review",
+        Status::Done => "done",
+        Status::Cancelled => "cancelled",
+    }
+}
+
+fn truncate_chars(s: &str, max: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= max {
+        s.to_string()
+    } else {
+        chars[..max.saturating_sub(1)].iter().collect::<String>() + "…"
+    }
 }
 
 // ── Run timeline (VIZ-6, run half) ──────────────────────────────────────────
@@ -1095,6 +1302,80 @@ pub fn PlansPanel() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── Flow layout ──────────────────────────────────────────────────────────
+
+    fn gnode(id: TaskId, position: u32, depends_on: Vec<TaskId>) -> api::PlanGraphNode {
+        api::PlanGraphNode {
+            task_id: id,
+            position,
+            depends_on,
+            title: format!("t{position}"),
+            status: daruma_domain::Status::Todo,
+        }
+    }
+
+    fn gedge(from: TaskId, to: TaskId) -> api::PlanGraphEdge {
+        api::PlanGraphEdge {
+            from,
+            to,
+            kind: "depends_on".into(),
+        }
+    }
+
+    #[test]
+    fn flow_ranks_by_longest_chain_and_is_stable() {
+        let (a, b, c, d) = (TaskId::new(), TaskId::new(), TaskId::new(), TaskId::new());
+        // a -> b -> d, a -> c -> d: d must land behind both branches (rank 2),
+        // not rank 1 next to c, or the arrow would point backwards.
+        let nodes = vec![
+            gnode(a, 0, vec![]),
+            gnode(b, 1, vec![a]),
+            gnode(c, 2, vec![a]),
+            gnode(d, 3, vec![b, c]),
+        ];
+        let edges = vec![gedge(a, b), gedge(a, c), gedge(b, d), gedge(c, d)];
+
+        let flow = plan_flow_layout(&nodes, &edges);
+        let rank = |id: TaskId| flow.place(id).unwrap().rank;
+        assert_eq!(rank(a), 0);
+        assert_eq!(rank(b), 1);
+        assert_eq!(rank(c), 1);
+        assert_eq!(rank(d), 2);
+
+        // Every edge runs strictly left to right — that is the whole promise of
+        // the diagram.
+        for e in &edges {
+            assert!(rank(e.from) < rank(e.to), "edge went backwards");
+        }
+
+        // Same input, same picture: re-laying out must not move anything.
+        assert_eq!(plan_flow_layout(&nodes, &edges), flow);
+        // Input order must not matter either.
+        let mut shuffled = nodes.clone();
+        shuffled.reverse();
+        assert_eq!(plan_flow_layout(&shuffled, &edges), flow);
+    }
+
+    #[test]
+    fn independent_tasks_share_the_first_column_ordered_by_position() {
+        let (a, b) = (TaskId::new(), TaskId::new());
+        let nodes = vec![gnode(b, 5, vec![]), gnode(a, 1, vec![])];
+        let flow = plan_flow_layout(&nodes, &[]);
+        assert_eq!(flow.place(a).unwrap().rank, 0);
+        assert_eq!(flow.place(b).unwrap().rank, 0);
+        assert_eq!(flow.place(a).unwrap().row, 0);
+        assert_eq!(flow.place(b).unwrap().row, 1);
+    }
+
+    #[test]
+    fn a_cycle_does_not_hang_the_tab() {
+        let (a, b) = (TaskId::new(), TaskId::new());
+        let nodes = vec![gnode(a, 0, vec![b]), gnode(b, 1, vec![a])];
+        let flow = plan_flow_layout(&nodes, &[gedge(a, b), gedge(b, a)]);
+        assert_eq!(flow.boxes.len(), 2);
+    }
+
     use daruma_domain::Actor;
     use daruma_shared::{time, PlanId, ProjectId};
 

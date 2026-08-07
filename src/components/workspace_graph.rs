@@ -24,12 +24,17 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::api::{self, GraphNeighborhood, GraphNode};
 use crate::event_store::EventStoreCtx;
-use crate::projects_ctx::ProjectsCtx;
+use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
+use daruma_domain::Project;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const INITIAL_LIMIT: u32 = 80;
 const IMPACT_LIMIT: u32 = 40;
+/// Hops walked out from the focused node. 2 shows a task with its plan and the
+/// plan's siblings; 3 already starts to crowd.
+const DEFAULT_DEPTH: u32 = 2;
+const SEARCH_LIMIT: u32 = 8;
 const LAYOUT_ITERATIONS: u32 = 60;
 const TICK_MS: u32 = 16; // ~60 fps during layout
 const DEBOUNCE_MS: u32 = 300;
@@ -181,9 +186,13 @@ struct FilterState {
 }
 
 impl FilterState {
+    /// Comments start hidden. They are the most numerous node kind in any real
+    /// workspace and they never carry structure — showing them by default is
+    /// what turns the canvas into a hairball. The toolbar chip switches them
+    /// back on.
     fn new() -> Self {
         Self {
-            hidden_node_kinds: HashSet::new(),
+            hidden_node_kinds: HashSet::from([NodeKind::Comment]),
             hidden_edge_kinds: HashSet::new(),
         }
     }
@@ -199,10 +208,58 @@ impl FilterState {
 
 // ── WorkspaceGraph component ──────────────────────────────────────────────────
 
+/// Result of one graph fetch: the merged neighborhood plus how many roots came
+/// back at exactly the per-root limit — i.e. how much of the graph the server
+/// cut off. Silently dropping that made a truncated view look complete.
+struct GraphFetch {
+    neighborhood: GraphNeighborhood,
+    truncated_roots: usize,
+}
+
+/// What the canvas is currently showing.
+///
+/// `Projects` is the "everything under these roots" view — useful only when a
+/// single small project is picked. `Focus` is the question the graph actually
+/// answers well: what sits within `depth` hops of one node.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum GraphScope {
+    Projects(Vec<String>),
+    Focus { node_id: String, depth: u32 },
+}
+
+/// Project ids to seed the graph from. A picked project seeds only itself;
+/// "All"/"Inbox" still fan out across the workspace, which is what makes the
+/// canvas unreadable — the project bar is the way out of that.
+fn graph_roots(filter: &ProjectFilter, projects: &[Project]) -> Vec<String> {
+    match filter {
+        ProjectFilter::Of(pid) => vec![pid.to_string()],
+        _ => projects.iter().map(|p| p.id.to_string()).collect(),
+    }
+}
+
+/// Fetch whatever the current scope asks for.
+async fn fetch_scope(scope: GraphScope) -> Option<GraphFetch> {
+    match scope {
+        GraphScope::Projects(ids) => fetch_full_neighborhood(ids).await,
+        GraphScope::Focus { node_id, depth } => {
+            match api::workspacegraph_related(&node_id, depth, INITIAL_LIMIT).await {
+                Ok(nb) => Some(GraphFetch {
+                    truncated_roots: usize::from(nb.nodes.len() as u32 >= INITIAL_LIMIT),
+                    neighborhood: nb,
+                }),
+                Err(e) => {
+                    leptos::logging::warn!("[graph] related({node_id}) failed: {e}");
+                    None
+                }
+            }
+        }
+    }
+}
+
 /// Fetch the graph for a list of project ids (formatted as `prj_<uuid>`),
 /// calling `workspacegraph_related` for each root and merging results.
 /// Deduplicates nodes by `id`; edges are included if both endpoints are present.
-async fn fetch_full_neighborhood(project_source_ids: Vec<String>) -> Option<GraphNeighborhood> {
+async fn fetch_full_neighborhood(project_source_ids: Vec<String>) -> Option<GraphFetch> {
     if project_source_ids.is_empty() {
         return None;
     }
@@ -210,12 +267,16 @@ async fn fetch_full_neighborhood(project_source_ids: Vec<String>) -> Option<Grap
     let mut seen_nodes: HashSet<String> = HashSet::new();
     let mut all_edges = Vec::new();
     let mut seen_edges: HashSet<(String, String, String)> = HashSet::new();
+    let mut truncated_roots = 0usize;
 
     for source_id in &project_source_ids {
         // node_id format the server expects: "project:prj_<uuid>"
         let node_id = format!("project:{source_id}");
         match api::workspacegraph_related(&node_id, 2, INITIAL_LIMIT).await {
             Ok(nb) => {
+                if nb.nodes.len() as u32 >= INITIAL_LIMIT {
+                    truncated_roots += 1;
+                }
                 for node in nb.nodes {
                     if seen_nodes.insert(node.id.clone()) {
                         all_nodes.push(node);
@@ -234,9 +295,12 @@ async fn fetch_full_neighborhood(project_source_ids: Vec<String>) -> Option<Grap
         }
     }
 
-    Some(GraphNeighborhood {
-        nodes: all_nodes,
-        edges: all_edges,
+    Some(GraphFetch {
+        neighborhood: GraphNeighborhood {
+            nodes: all_nodes,
+            edges: all_edges,
+        },
+        truncated_roots,
     })
 }
 
@@ -277,36 +341,55 @@ pub fn WorkspaceGraph() -> impl IntoView {
     // Cursor applied from graph_events.
     let event_cursor: RwSignal<usize> = RwSignal::new(0);
 
-    // Bootstrap-started flag: prevents re-running the initial fetch when the
-    // projects signal updates for other reasons after we've already loaded.
-    let bootstrap_done = RwSignal::new(false);
+    // Focus: the node the graph is centred on, and how far out to walk. While
+    // set it overrides the project scope entirely.
+    let focus: RwSignal<Option<(String, String)>> = RwSignal::new(None);
+    let depth: RwSignal<u32> = RwSignal::new(DEFAULT_DEPTH);
 
-    // ── Initial fetch ──────────────────────────────────────────────────────
-    // Reactive on `projects` — fires once projects are non-empty, then stops.
+    // Scope the current view was fetched for. Doubles as the "already loaded
+    // this" guard: the effect below is reactive on the project list, the
+    // project filter, the focus and the depth, and must re-fetch only when the
+    // resulting scope actually differs.
+    let current_scope: RwSignal<Option<GraphScope>> = RwSignal::new(None);
+
+    // How many roots came back at the per-root limit, i.e. how much the server
+    // cut off. Surfaced in the toolbar — a truncated graph used to look whole.
+    let truncated_roots: RwSignal<usize> = RwSignal::new(0);
+
+    // ── Fetch, scoped to the picked project ────────────────────────────────
 
     Effect::new(move |_| {
-        // Already bootstrapped — ignore subsequent project-signal updates.
-        if bootstrap_done.get_untracked() {
-            return;
-        }
-
         let projects = projects_ctx.projects.get(); // reactive dependency
+        let filter = projects_ctx.current_filter.get(); // reactive dependency
+        let focused = focus.get(); // reactive dependency
+        let depth = depth.get(); // reactive dependency
 
-        let project_source_ids: Vec<String> = projects.iter().map(|p| p.id.to_string()).collect();
-
-        if project_source_ids.is_empty() {
-            // Projects not loaded yet — wait for next reactive tick.
+        let scope = match focused {
+            Some((node_id, _)) => GraphScope::Focus { node_id, depth },
+            None => {
+                if projects.is_empty() {
+                    // Projects not loaded yet — wait for next reactive tick.
+                    return;
+                }
+                let roots = graph_roots(&filter, &projects);
+                if roots.is_empty() {
+                    return;
+                }
+                GraphScope::Projects(roots)
+            }
+        };
+        if current_scope.get_untracked().as_ref() == Some(&scope) {
             return;
         }
-
-        // Mark done before spawning so a second effect-fire won't double-fetch.
-        bootstrap_done.set(true);
+        // Claim the scope before spawning so a second fire won't double-fetch.
+        current_scope.set(Some(scope.clone()));
         let requested_node = requested_node.clone();
 
         spawn_local(async move {
             loading.set(true);
-            match fetch_full_neighborhood(project_source_ids).await {
-                Some(nb) if !nb.nodes.is_empty() => {
+            match fetch_scope(scope).await {
+                Some(fetched) if !fetched.neighborhood.nodes.is_empty() => {
+                    let nb = fetched.neighborhood;
                     if let Some(node) = requested_node
                         .as_ref()
                         .and_then(|id| nb.nodes.iter().find(|node| &node.id == id))
@@ -315,6 +398,7 @@ pub fn WorkspaceGraph() -> impl IntoView {
                     }
                     init_positions(&nb, positions);
                     neighborhood.set(Some(nb));
+                    truncated_roots.set(fetched.truncated_roots);
                     loading.set(false);
                     run_layout(positions, layout_running, LAYOUT_ITERATIONS);
                 }
@@ -323,6 +407,7 @@ pub fn WorkspaceGraph() -> impl IntoView {
                         nodes: vec![],
                         edges: vec![],
                     }));
+                    truncated_roots.set(0);
                     loading.set(false);
                 }
                 None => {
@@ -344,22 +429,21 @@ pub fn WorkspaceGraph() -> impl IntoView {
             return;
         }
 
-        // Snapshot project ids now (before the async boundary) so the Timeout
-        // closure captures a plain Vec<String> — not the ProjectsCtx signal,
-        // which would make the closure FnOnce.
-        let project_source_ids: Vec<String> = projects_ctx
-            .projects
-            .get_untracked()
-            .iter()
-            .map(|p| p.id.to_string())
-            .collect();
+        // Snapshot the scope now (before the async boundary) so the Timeout
+        // closure captures a plain value — not a signal, which would make the
+        // closure FnOnce. Refetch what is on screen, not the whole workspace.
+        let Some(scope) = current_scope.get_untracked() else {
+            return;
+        };
 
         let _t = Timeout::new(DEBOUNCE_MS, move || {
             let current_len = store.graph_events.with_untracked(|v| v.len());
             event_cursor.set(current_len);
 
             spawn_local(async move {
-                if let Some(nb) = fetch_full_neighborhood(project_source_ids).await {
+                if let Some(fetched) = fetch_scope(scope).await {
+                    let nb = fetched.neighborhood;
+                    truncated_roots.set(fetched.truncated_roots);
                     positions.update(|m| {
                         for node in &nb.nodes {
                             if !m.contains_key(&node.id) {
@@ -393,7 +477,44 @@ pub fn WorkspaceGraph() -> impl IntoView {
         <div class="workspace-graph-container">
             <div class="workspace-graph-toolbar">
                 <span class="workspace-graph-toolbar__title">"Workspace Graph"</span>
+                <GraphFocusBar focus=focus depth=depth />
                 <GraphFilters filter_state=filter_state />
+                <span class="workspace-graph-toolbar__scale">
+                    {move || {
+                        // Count what is actually drawn, not what was fetched —
+                        // hiding a kind must move this number.
+                        let fs = filter_state.get();
+                        let shown = neighborhood.with(|nb| {
+                            nb.as_ref()
+                                .map(|n| {
+                                    n.nodes
+                                        .iter()
+                                        .filter(|node| {
+                                            fs.node_visible(&NodeKind::from_str(&node.kind))
+                                        })
+                                        .count()
+                                })
+                                .unwrap_or(0)
+                        });
+                        // Say it plainly when the picture is partial — without
+                        // this a truncated view reads as the whole graph. The
+                        // way out differs: with several roots you can still
+                        // narrow to one project, with a single root you can't.
+                        let roots = match current_scope.get() {
+                            Some(GraphScope::Projects(ids)) => ids.len(),
+                            _ => 1,
+                        };
+                        match (truncated_roots.get(), roots) {
+                            (0, _) => format!("{shown} nodes"),
+                            (_, 1) => format!(
+                                "{shown} nodes · cut off at {INITIAL_LIMIT} — focus on a node or lower the depth"
+                            ),
+                            (cut, _) => format!(
+                                "{shown} nodes · {cut} project(s) cut off at {INITIAL_LIMIT} — pick a single project"
+                            ),
+                        }
+                    }}
+                </span>
                 <button
                     class="btn-ghost btn-sm"
                     type="button"
@@ -457,12 +578,130 @@ pub fn WorkspaceGraph() -> impl IntoView {
                                     node=selected_node
                                     impact_ids=impact_ids
                                     impact_mode=impact_mode
+                                    focus=focus
                                 />
                             </Show>
                         </>
                     }.into_any()
                 }}
             </div>
+        </div>
+    }
+}
+
+// ── Focus bar ────────────────────────────────────────────────────────────────
+
+/// Search for a node and centre the graph on it, with a depth control.
+///
+/// This is the way to get an answer out of a workspace too large to draw: a
+/// project-wide view is a picture, a focused neighbourhood is a question.
+#[component]
+fn GraphFocusBar(focus: RwSignal<Option<(String, String)>>, depth: RwSignal<u32>) -> impl IntoView {
+    let query = RwSignal::new(String::new());
+    let hits: RwSignal<Vec<GraphNode>> = RwSignal::new(Vec::new());
+    let searching = RwSignal::new(false);
+
+    let run_search = move || {
+        let q = query.get_untracked().trim().to_string();
+        if q.is_empty() {
+            hits.set(Vec::new());
+            return;
+        }
+        searching.set(true);
+        spawn_local(async move {
+            match api::workspacegraph_search(&q, SEARCH_LIMIT, None).await {
+                Ok(found) => hits.set(found.into_iter().map(|h| h.node).collect()),
+                Err(e) => {
+                    leptos::logging::warn!("[graph] search({q}) failed: {e}");
+                    hits.set(Vec::new());
+                }
+            }
+            searching.set(false);
+        });
+    };
+
+    view! {
+        <div class="graph-focus">
+            <Show
+                when=move || focus.get().is_some()
+                fallback=move || view! {
+                    <input
+                        class="graph-focus__input"
+                        type="search"
+                        placeholder="Focus on a node…"
+                        prop:value=move || query.get()
+                        on:input=move |ev| query.set(event_target_value(&ev))
+                        on:keydown=move |ev| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                run_search();
+                            }
+                        }
+                    />
+                }
+            >
+                {move || {
+                    let (_, title) = focus.get().expect("checked by Show");
+                    view! {
+                        <span class="graph-focus__chip">
+                            {truncate_title(&title, 32)}
+                            <button
+                                class="graph-focus__clear"
+                                type="button"
+                                title="Back to the project view"
+                                on:click=move |_| {
+                                    focus.set(None);
+                                    query.set(String::new());
+                                    hits.set(Vec::new());
+                                }
+                            >
+                                "✕"
+                            </button>
+                        </span>
+                    }
+                }}
+            </Show>
+
+            <span class="graph-focus__depth" title="How many hops out from the focused node">
+                <For each=move || [1u32, 2, 3] key=|d| *d let:d>
+                    <button
+                        class=move || if depth.get() == d { "chip chip--on" } else { "chip" }
+                        type="button"
+                        on:click=move |_| depth.set(d)
+                    >
+                        {format!("{d}")}
+                    </button>
+                </For>
+            </span>
+
+            <Show when=move || !hits.get().is_empty()>
+                <div class="graph-focus__hits">
+                    <For each=move || hits.get() key=|n| n.id.clone() let:node>
+                        {
+                            let id = node.id.clone();
+                            let title = node.title.clone();
+                            let label = NodeKind::from_str(&node.kind).label();
+                            let shown = truncate_title(&node.title, 40);
+                            view! {
+                                <button
+                                    class="graph-focus__hit"
+                                    type="button"
+                                    on:click=move |_| {
+                                        focus.set(Some((id.clone(), title.clone())));
+                                        hits.set(Vec::new());
+                                    }
+                                >
+                                    <span class="graph-focus__hit-kind">{label}</span>
+                                    {shown}
+                                </button>
+                            }
+                        }
+                    </For>
+                </div>
+            </Show>
+            <Show when=move || searching.get()>
+                <span class="graph-focus__searching">"…"</span>
+            </Show>
         </div>
     }
 }
@@ -792,6 +1031,7 @@ fn NodeDetailsPanel(
     node: RwSignal<Option<GraphNode>>,
     impact_ids: RwSignal<HashSet<String>>,
     impact_mode: RwSignal<bool>,
+    focus: RwSignal<Option<(String, String)>>,
 ) -> impl IntoView {
     view! {
         <div class="node-details-panel">
@@ -799,6 +1039,7 @@ fn NodeDetailsPanel(
                 let Some(n) = node.get() else { return view! { <></> }.into_any(); };
                 let nk = NodeKind::from_str(&n.kind);
                 let node_id_for_impact = n.id.clone();
+                let focus_target = (n.id.clone(), n.title.clone());
                 let title = n.title.clone();
                 let text = n.text.clone();
                 let source_id = n.source_id.clone();
@@ -840,6 +1081,15 @@ fn NodeDetailsPanel(
                                 </span>
                             </Show>
                         </div>
+
+                        <button
+                            type="button"
+                            class="btn-ghost btn-sm"
+                            title="Redraw the graph around this node"
+                            on:click=move |_| focus.set(Some(focus_target.clone()))
+                        >
+                            "Focus here"
+                        </button>
 
                         <button
                             type="button"
@@ -1057,5 +1307,42 @@ fn truncate_title(s: &str, max_chars: usize) -> String {
         s.to_string()
     } else {
         chars[..max_chars - 1].iter().collect::<String>() + "…"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{graph_roots, FilterState, NodeKind};
+    use crate::projects_ctx::ProjectFilter;
+    use daruma_domain::Project;
+
+    #[test]
+    fn picked_project_seeds_only_itself() {
+        let one = Project::new("one", None);
+        let two = Project::new("two", None);
+        let projects = vec![one.clone(), two.clone()];
+
+        assert_eq!(
+            graph_roots(&ProjectFilter::Of(two.id), &projects),
+            vec![two.id.to_string()]
+        );
+        // "All" still fans out — that is the case the toolbar warns about.
+        assert_eq!(
+            graph_roots(&ProjectFilter::All, &projects),
+            vec![one.id.to_string(), two.id.to_string()]
+        );
+        assert_eq!(
+            graph_roots(&ProjectFilter::Inbox, &projects),
+            vec![one.id.to_string(), two.id.to_string()]
+        );
+    }
+
+    #[test]
+    fn comments_are_hidden_until_asked_for() {
+        let fs = FilterState::new();
+        assert!(!fs.node_visible(&NodeKind::Comment));
+        assert!(fs.node_visible(&NodeKind::Task));
+        assert!(fs.node_visible(&NodeKind::Plan));
+        assert!(fs.node_visible(&NodeKind::Project));
     }
 }

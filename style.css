@@ -816,44 +816,66 @@ h1 {
   margin-bottom: 0.5rem;
 }
 
-.plan-graph-waves {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0.6rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px dashed var(--border);
-}
-
-.plan-graph-wave {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.plan-graph-wave__label {
-  flex: 0 0 auto;
-  color: var(--muted);
-  min-width: 4.5rem;
-}
-
-.plan-graph-wave__tasks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.plan-graph-task-chip {
-  padding: 0.1rem 0.45rem;
+/* ── Plan flow diagram ──────────────────────────────────────────────────────
+   One column per dependency rank, left to right. Scrolls rather than truncates:
+   a plan with 70 parallel tasks really is 70 rows tall, and saying so beats
+   hiding it. */
+.plan-flow {
+  width: 100%;
+  overflow: auto;
+  max-height: 70vh;
+  margin: 0.5rem 0 0.75rem;
+  background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text);
-  cursor: help;
+  border-radius: 6px;
 }
-.plan-graph-task-chip--critical {
-  border-color: var(--p1);
-  color: var(--p1);
+
+.plan-flow__svg { display: block; }
+
+.plan-flow__edge {
+  fill: none;
+  stroke: #3d444d;
+  stroke-width: 1.2;
+}
+.plan-flow__edge--critical { stroke: var(--p1); stroke-width: 1.8; }
+.plan-flow__arrowhead { fill: #3d444d; }
+
+.plan-flow__box {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.plan-flow__node--critical .plan-flow__box { stroke: var(--p1); }
+/* Claimable right now — the one thing you look for in a running plan. */
+.plan-flow__node--ready .plan-flow__box {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.plan-flow__title {
+  fill: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.plan-flow__status {
+  font-family: inherit;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* SVG text takes `fill`, not `color`, so the `.status-*` rules don't apply. */
+.plan-flow__status.status-inbox       { fill: var(--muted); }
+.plan-flow__status.status-todo        { fill: var(--text); }
+.plan-flow__status.status-in-progress { fill: var(--accent); }
+.plan-flow__status.status-in-review   { fill: #a371f7; }
+.plan-flow__status.status-done        { fill: var(--done); }
+.plan-flow__status.status-cancelled   { fill: var(--p0); }
+
+.plan-flow__id {
+  fill: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
 }
 
 .plan-graph-nodes {
@@ -1726,6 +1748,132 @@ h1 {
   margin-right: 0.5rem;
 }
 
+/* Focus bar — node search, the current focus chip, and the depth control. */
+.graph-focus {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+}
+
+.graph-focus__input {
+  font: inherit;
+  font-size: 12px;
+  width: 14rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.graph-focus__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.graph-focus__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 12px;
+  padding: 0.2rem 0.4rem 0.2rem 0.6rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: rgba(83, 155, 245, 0.08);
+}
+
+.graph-focus__clear {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+.graph-focus__clear:hover { color: var(--text); }
+
+.graph-focus__depth {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.graph-focus__depth .chip {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  min-width: 1.5rem;
+  padding: 0.1rem 0.35rem;
+}
+.graph-focus__depth .chip:hover { color: var(--text); border-color: var(--text); }
+.graph-focus__depth .chip--on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(83, 155, 245, 0.08);
+}
+
+/* Search results — floats over the canvas, so it never reflows the toolbar. */
+.graph-focus__hits {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 22rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.graph-focus__hit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+.graph-focus__hit:last-child { border-bottom: 0; }
+.graph-focus__hit:hover { background: var(--bg); }
+
+.graph-focus__hit-kind {
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  min-width: 3.5rem;
+}
+
+.graph-focus__searching { color: var(--muted); font-size: 11px; }
+
+/* Scale counter — sits at the right of the toolbar and says how much of the
+   graph is actually on screen. */
+.workspace-graph-toolbar__scale {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .workspace-graph-body {
   display: flex;
   flex-direction: row;
@@ -1734,9 +1882,14 @@ h1 {
   position: relative;
 }
 
+/* The SVG carries a fixed 900x620 `width`/`height` because every layout
+   coordinate is computed in that space. Let CSS stretch the rendered box to
+   the (now full-width) container — the viewBox keeps the math untouched. */
 .workspace-graph-svg {
   flex: 1;
   min-width: 0;
+  width: 100%;
+  height: auto;
   background: var(--bg);
   display: block;
 }
@@ -2037,11 +2190,6 @@ h1 {
   /* Plan dependency graph: wave label above its chips instead of a fixed
      min-width label squeezing them; node rows drop title to its own line,
      same treatment as task-row/artifact-row. */
-  .plan-graph-wave {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
-  }
   .plan-graph-node {
     flex-wrap: wrap;
     row-gap: 0.2rem;
