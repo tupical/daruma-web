@@ -742,7 +742,8 @@ fn run_status_label(status: api::RunStatus) -> &'static str {
 /// `activity_feed.rs`'s private `actor_label`, copied rather than shared.
 fn actor_label(actor: &Actor) -> String {
     match actor {
-        Actor::User => "user".to_string(),
+        Actor::User { name: Some(name), .. } => name.clone(),
+        Actor::User { .. } => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
     }
 }

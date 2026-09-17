@@ -35,7 +35,7 @@ pub fn TaskRow(task: Task) -> impl IntoView {
     let created_by_is_agent = created_by.as_ref().map(Actor::is_agent).unwrap_or(false);
     let ai_creator_name: Option<String> = created_by.as_ref().and_then(|a| match a {
         Actor::Agent { name, .. } => Some(name.clone()),
-        Actor::User => None,
+        Actor::User { .. } => None,
     });
 
     // Relations are fetched lazily on first expand.
@@ -351,7 +351,8 @@ fn render_actors(
 /// Format an [`Actor`] as a short display string.
 fn actor_label(actor: &Actor) -> String {
     match actor {
-        Actor::User => "user".to_string(),
+        Actor::User { name: Some(name), .. } => name.clone(),
+        Actor::User { .. } => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
     }
 }
