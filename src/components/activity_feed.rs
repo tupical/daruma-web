@@ -146,7 +146,8 @@ impl FeedRow {
 pub(crate) fn actor_label(env: &EventEnvelope) -> String {
     use daruma_domain::Actor;
     match &env.actor {
-        Actor::User => "user".to_string(),
+        Actor::User { name: Some(name), .. } => name.clone(),
+        Actor::User { .. } => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
     }
 }

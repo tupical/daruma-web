@@ -186,14 +186,15 @@ struct NarrativeBlock {
 
 fn actor_label(actor: &Actor) -> String {
     match actor {
-        Actor::User => "user".to_string(),
+        Actor::User { name: Some(name), .. } => name.clone(),
+        Actor::User { .. } => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
     }
 }
 
 fn actor_chip_class(actor: &Actor) -> &'static str {
     match actor {
-        Actor::User => "actor-chip actor-user",
+        Actor::User { .. } => "actor-chip actor-user",
         Actor::Agent { .. } => "actor-chip actor-agent",
     }
 }
