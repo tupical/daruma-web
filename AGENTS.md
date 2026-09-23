@@ -17,8 +17,9 @@ workspace inference for this repository.
 daruma runs per workspace, so it is not always reachable. Decide once
 per session:
 
-1. If `daruma_*` MCP tools are present, probe `daruma_healthz`.
-2. **Healthy** → route all durable task/plan state through daruma.
+1. If `daruma_*` MCP tools are present, start with the call you need; a transport
+   error on it means daruma is unreachable (`daruma_healthz` is the diagnostic, not a preflight).
+2. **Reachable** → route all durable task/plan state through daruma.
    Intake is plan-only (ADR-0007): create the plan and its tasks in one
    atomic call with `daruma_plan_materialize` (there is no `daruma_create`),
    claim the next ready task with `daruma_plan_drain_next`, then drive it
@@ -28,8 +29,8 @@ per session:
 ## Durable project knowledge
 
 There is no separate daruma document API. Durable task and plan state lives
-in daruma itself (plans, tasks, comments). Research, vision, and ADRs live in
-the `meisei-research` repo, not in agent memory. Do not treat Serena memories
+in daruma itself (plans, tasks, comments). Research and proposed ADRs live in `meisei-research`; canon, vision and
+accepted ADRs in `meisei.ru` — not in agent memory. Do not treat Serena memories
 as a source of truth for this project's current conventions.
 
 For notes tied to a specific task or plan, use `daruma_comment`.
