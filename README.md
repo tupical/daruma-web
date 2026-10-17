@@ -58,9 +58,10 @@ every client (`src/components/project_settings_panel.rs`,
 reverts and the panel shows "Not authorized"; the rest of the UI is
 unaffected.
 
-Other non-`GET` requests do not change Daruma data:
-`POST /v1/relations/query` is a bulk read, and `POST /oauth/register` /
-`POST /oauth/token` belong to the sign-in flow.
+The other non-`GET` requests do not touch tracker data:
+`POST /v1/relations/query` is a bulk read; `POST /oauth/register` (registers
+this app as an OAuth client on the server) and `POST /oauth/token` are the
+sign-in flow (`src/auth.rs`).
 
 ### What daruma-web displays (OSS boundary)
 
