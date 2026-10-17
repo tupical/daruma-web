@@ -7,7 +7,7 @@ contract     = "/v1/* + WS"
 contract_min = "v1"
 repo_path    = "daruma-web (standalone repo)"
 runtime      = "Rust/WASM (Leptos 0.7, csr)"
-read_only    = true
+read_only    = false  # project settings toggles PATCH /v1/projects/{id}/settings
 
 [core]
 source       = "git"
@@ -28,7 +28,9 @@ needs = [
   "DocumentRead",
   "TaskRelationRead",
 ]
-optional = []
+# Only the project settings toggles need it; without it they revert with
+# "Not authorized" and the rest of the viewer keeps working.
+optional = ["ProjectWrite"]
 
 [build]
 tool    = "trunk"

@@ -1,6 +1,7 @@
 # daruma-web
 
-Read-only Leptos/WASM web UI for Daruma.
+Leptos/WASM web UI for Daruma — an observability viewer with one write path:
+the per-project settings toggles (see [Scope](#scope)).
 
 The app connects to a Daruma API server through `/v1/*` REST endpoints and
 `/v1/ws`. It is a static frontend: build it with Trunk and serve the generated
@@ -44,8 +45,23 @@ trunk build --release --public-url /web/
 ## Scope
 
 This UI is an observability surface. It lists and inspects tasks, projects,
-plans, runs, documents, relations, and realtime updates. It does not create or
-mutate Daruma data.
+plans, runs, documents, relations, and realtime updates. It does not create,
+edit or delete tasks, plans, runs, documents or relations.
+
+The one exception is project settings. With a single project selected, the
+right-rail **Settings** panel shows the "Interview" and "Human Log"
+auto-append toggles; flipping one sends
+`PATCH /v1/projects/{id}/settings` and changes that setting on the server for
+every client (`src/components/project_settings_panel.rs`,
+`update_project_settings` in `src/api.rs`). The server requires the
+`ProjectWrite` capability for that request. With a read-only token the toggle
+reverts and the panel shows "Not authorized"; the rest of the UI is
+unaffected.
+
+The other non-`GET` requests do not touch tracker data:
+`POST /v1/relations/query` is a bulk read; `POST /oauth/register` (registers
+this app as an OAuth client on the server) and `POST /oauth/token` are the
+sign-in flow (`src/auth.rs`).
 
 ### What daruma-web displays (OSS boundary)
 
