@@ -6,7 +6,7 @@
 
 use gloo_net::http::Request;
 use js_sys::Uint8Array;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 
@@ -15,9 +15,14 @@ const WORKSPACE_STORAGE_KEY: &str = "daruma_workspace_id";
 const CLIENT_ID_STORAGE_KEY: &str = "daruma_oauth_client_id";
 const VERIFIER_SESSION_KEY: &str = "daruma_oauth_code_verifier";
 const STATE_SESSION_KEY: &str = "daruma_oauth_state";
-const REDIRECT_URI: &str = "https://daruma.mcpbox.ru/web/";
-const AUTHORIZE_URL: &str = "https://mcpbox.ru/oauth/authorize";
-const RESOURCE: &str = "https://daruma.mcpbox.ru/v1/mcp";
+const ENDPOINTS_SESSION_KEY: &str = "daruma_oauth_endpoints";
+/// RFC 9728 metadata of the API server the bundle is served next to.
+const PROTECTED_RESOURCE_PATH: &str = "/.well-known/oauth-protected-resource";
+/// RFC 8414 well-known suffix of the authorization server metadata.
+const AUTHORIZATION_SERVER_WELL_KNOWN: &str = "/.well-known/oauth-authorization-server";
+/// The bundle's `public_url` (Trunk.toml) on the page's own origin is where
+/// the authorization server sends the browser back.
+const REDIRECT_PATH: &str = "/web/";
 const SCOPE: &str = "workspace:default mcp:tools";
 
 #[derive(Serialize)]
@@ -36,6 +41,34 @@ struct RegisterResponse {
 struct TokenResponse {
     access_token: String,
     workspace_id: String,
+}
+
+#[derive(Deserialize)]
+struct ProtectedResourceMetadata {
+    resource: String,
+    #[serde(default)]
+    authorization_servers: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct AuthorizationServerMetadata {
+    authorization_endpoint: String,
+    token_endpoint: String,
+    #[serde(default)]
+    registration_endpoint: Option<String>,
+    #[serde(default)]
+    code_challenge_methods_supported: Option<Vec<String>>,
+}
+
+/// OAuth endpoints of this deployment. None of them is compiled in: they are
+/// discovered at startup from the API server (see [`discover_oauth`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthEndpoints {
+    authorize_url: String,
+    token_url: String,
+    register_url: String,
+    resource: String,
+    redirect_uri: String,
 }
 
 /// Return the stored token, if any.
@@ -70,12 +103,48 @@ pub fn code_from_url() -> Option<String> {
     query_param(&search, "code")
 }
 
+/// Discover OAuth sign-in from the API server: its RFC 9728
+/// protected-resource metadata names the authorization server, whose RFC 8414
+/// metadata gives the endpoints. `Ok(None)` means the server publishes no
+/// OAuth sign-in (the OSS daruma-server); the viewer then needs `?token=`.
+pub async fn discover_oauth() -> Result<Option<OAuthEndpoints>, String> {
+    let origin = web_sys::window()
+        .ok_or_else(|| "window unavailable".to_string())?
+        .location()
+        .origin()
+        .map_err(js_error)?;
+    // The metadata is public by definition (RFC 9728), so a server that
+    // demands auth for it (the OSS daruma-server answers 401) publishes none;
+    // a static host may answer with its SPA fallback page instead of a 404.
+    let resource = match get_metadata::<ProtectedResourceMetadata>(PROTECTED_RESOURCE_PATH).await {
+        Ok(Some(resource)) => resource,
+        Ok(None) => return Ok(None),
+        Err(MetadataError::Status(401 | 403, err) | MetadataError::Body(err)) => {
+            leptos::logging::log!("[auth] no OAuth metadata: {err}");
+            return Ok(None);
+        }
+        Err(MetadataError::Status(_, err) | MetadataError::Request(err)) => return Err(err),
+    };
+    let Some(issuer) = resource.authorization_servers.first() else {
+        return Ok(None);
+    };
+    let metadata_url = authorization_server_metadata_url(issuer)?;
+    let server = match get_metadata::<AuthorizationServerMetadata>(&metadata_url).await {
+        Ok(Some(server)) => server,
+        Ok(None) => return Err(format!("{metadata_url}: HTTP 404")),
+        Err(
+            MetadataError::Status(_, err) | MetadataError::Body(err) | MetadataError::Request(err),
+        ) => return Err(err),
+    };
+    endpoints_from_metadata(resource, server, &origin).map(Some)
+}
+
 /// Start Authorization Code + PKCE login. This redirects the browser.
-pub async fn start_oauth() -> Result<(), String> {
+pub async fn start_oauth(endpoints: &OAuthEndpoints) -> Result<(), String> {
     let verifier = random_urlsafe(32)?;
     let challenge = code_challenge(&verifier).await?;
     let state = random_urlsafe(24)?;
-    let client_id = oauth_client_id().await?;
+    let client_id = oauth_client_id(endpoints).await?;
 
     let session = session_storage()?;
     session
@@ -84,15 +153,23 @@ pub async fn start_oauth() -> Result<(), String> {
     session
         .set_item(STATE_SESSION_KEY, &state)
         .map_err(js_error)?;
+    // The code exchange must repeat the redirect URI and resource the
+    // authorization request carried, so it reuses these exact endpoints.
+    let stored = serde_json::to_string(endpoints).map_err(|e| e.to_string())?;
+    session
+        .set_item(ENDPOINTS_SESSION_KEY, &stored)
+        .map_err(js_error)?;
 
     let authorize_url = format!(
-        "{AUTHORIZE_URL}?response_type=code&client_id={}&redirect_uri={}&state={}&code_challenge={}&code_challenge_method=S256&scope={}&resource={}",
+        "{}{}response_type=code&client_id={}&redirect_uri={}&state={}&code_challenge={}&code_challenge_method=S256&scope={}&resource={}",
+        endpoints.authorize_url,
+        if endpoints.authorize_url.contains('?') { '&' } else { '?' },
         encode_component(&client_id),
-        encode_component(REDIRECT_URI),
+        encode_component(&endpoints.redirect_uri),
         encode_component(&state),
         encode_component(&challenge),
         encode_component(SCOPE),
-        encode_component(RESOURCE),
+        encode_component(&endpoints.resource),
     );
     web_sys::window()
         .ok_or_else(|| "window unavailable".to_string())?
@@ -122,17 +199,22 @@ pub async fn exchange_code(code: String) -> Result<(), String> {
         .get_item(VERIFIER_SESSION_KEY)
         .map_err(js_error)?
         .ok_or_else(|| "oauth code verifier not found".to_string())?;
-    let client_id = oauth_client_id().await?;
+    let endpoints = session
+        .get_item(ENDPOINTS_SESSION_KEY)
+        .map_err(js_error)?
+        .ok_or_else(|| "oauth endpoints not found".to_string())?;
+    let endpoints: OAuthEndpoints = serde_json::from_str(&endpoints).map_err(|e| e.to_string())?;
+    let client_id = oauth_client_id(&endpoints).await?;
     let body = form_body(&[
         ("grant_type", "authorization_code"),
         ("code", &code),
-        ("redirect_uri", REDIRECT_URI),
+        ("redirect_uri", &endpoints.redirect_uri),
         ("client_id", &client_id),
         ("code_verifier", &verifier),
-        ("resource", RESOURCE),
+        ("resource", &endpoints.resource),
     ]);
 
-    let resp = Request::post("/oauth/token")
+    let resp = Request::post(&endpoints.token_url)
         .credentials(web_sys::RequestCredentials::Include)
         .header("content-type", "application/x-www-form-urlencoded")
         .body(body)
@@ -154,6 +236,7 @@ pub async fn exchange_code(code: String) -> Result<(), String> {
     }
     let _ = session.remove_item(VERIFIER_SESSION_KEY);
     let _ = session.remove_item(STATE_SESSION_KEY);
+    let _ = session.remove_item(ENDPOINTS_SESSION_KEY);
     Ok(())
 }
 
@@ -178,9 +261,89 @@ fn extract_token_param(search: &str) -> Option<String> {
     query_param(search, "token")
 }
 
-async fn oauth_client_id() -> Result<String, String> {
+enum MetadataError {
+    /// The request itself failed.
+    Request(String),
+    /// The server answered with a non-2xx status other than 404.
+    Status(u16, String),
+    /// The server answered 2xx with a document that is not this metadata.
+    Body(String),
+}
+
+async fn get_metadata<T: DeserializeOwned>(url: &str) -> Result<Option<T>, MetadataError> {
+    let resp = Request::get(url)
+        .send()
+        .await
+        .map_err(|e| MetadataError::Request(format!("{url}: {e}")))?;
+    if resp.status() == 404 {
+        return Ok(None);
+    }
+    if !(200..300).contains(&(resp.status() as u32)) {
+        return Err(MetadataError::Status(
+            resp.status(),
+            format!("{url}: HTTP {}", resp.status()),
+        ));
+    }
+    resp.json::<T>()
+        .await
+        .map(Some)
+        .map_err(|e| MetadataError::Body(format!("{url}: {e}")))
+}
+
+/// RFC 8414 §3.1: the well-known suffix goes between the issuer's host and
+/// its path component.
+fn authorization_server_metadata_url(issuer: &str) -> Result<String, String> {
+    let issuer = issuer.trim().trim_end_matches('/');
+    let (scheme, rest) = issuer
+        .split_once("://")
+        .filter(|(scheme, rest)| matches!(*scheme, "https" | "http") && !rest.is_empty())
+        .ok_or_else(|| format!("authorization server is not an http(s) URL: {issuer}"))?;
+    let (host, path) = rest.split_at(rest.find('/').unwrap_or(rest.len()));
+    Ok(format!(
+        "{scheme}://{host}{AUTHORIZATION_SERVER_WELL_KNOWN}{path}"
+    ))
+}
+
+fn endpoints_from_metadata(
+    resource: ProtectedResourceMetadata,
+    server: AuthorizationServerMetadata,
+    origin: &str,
+) -> Result<OAuthEndpoints, String> {
+    if let Some(methods) = &server.code_challenge_methods_supported {
+        if !methods.iter().any(|method| method == "S256") {
+            return Err("authorization server does not support PKCE S256".to_string());
+        }
+    }
+    let register_url = server.registration_endpoint.ok_or_else(|| {
+        "authorization server has no dynamic client registration endpoint".to_string()
+    })?;
+    Ok(OAuthEndpoints {
+        authorize_url: absolute_url(&server.authorization_endpoint, "authorization_endpoint")?,
+        token_url: absolute_url(&server.token_endpoint, "token_endpoint")?,
+        register_url: absolute_url(&register_url, "registration_endpoint")?,
+        resource: absolute_url(&resource.resource, "resource")?,
+        redirect_uri: format!("{}{REDIRECT_PATH}", origin.trim_end_matches('/')),
+    })
+}
+
+fn absolute_url(value: &str, field: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.starts_with("https://") || value.starts_with("http://") {
+        Ok(value.to_string())
+    } else {
+        Err(format!("{field} is not an absolute http(s) URL: {value}"))
+    }
+}
+
+/// A client id is only valid at the server that registered it.
+fn client_id_storage_key(register_url: &str) -> String {
+    format!("{CLIENT_ID_STORAGE_KEY}:{register_url}")
+}
+
+async fn oauth_client_id(endpoints: &OAuthEndpoints) -> Result<String, String> {
+    let storage_key = client_id_storage_key(&endpoints.register_url);
     if let Some(storage) = local_storage() {
-        if let Ok(Some(client_id)) = storage.get_item(CLIENT_ID_STORAGE_KEY) {
+        if let Ok(Some(client_id)) = storage.get_item(&storage_key) {
             if !client_id.trim().is_empty() {
                 return Ok(client_id);
             }
@@ -189,11 +352,11 @@ async fn oauth_client_id() -> Result<String, String> {
 
     let payload = RegisterRequest {
         client_name: "daruma-web",
-        redirect_uris: [REDIRECT_URI],
+        redirect_uris: [&endpoints.redirect_uri],
         scope: SCOPE,
     };
     let body = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
-    let resp = Request::post("/oauth/register")
+    let resp = Request::post(&endpoints.register_url)
         .credentials(web_sys::RequestCredentials::Include)
         .header("content-type", "application/json")
         .body(body)
@@ -210,7 +373,7 @@ async fn oauth_client_id() -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?;
     if let Some(storage) = local_storage() {
-        let _ = storage.set_item(CLIENT_ID_STORAGE_KEY, &registered.client_id);
+        let _ = storage.set_item(&storage_key, &registered.client_id);
     }
     Ok(registered.client_id)
 }
@@ -313,4 +476,108 @@ fn js_error(value: JsValue) -> String {
     value
         .as_string()
         .unwrap_or_else(|| "browser API error".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn resource(json: &str) -> ProtectedResourceMetadata {
+        serde_json::from_str(json).unwrap()
+    }
+
+    fn server(json: &str) -> AuthorizationServerMetadata {
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn metadata_url_puts_well_known_before_issuer_path() {
+        assert_eq!(
+            authorization_server_metadata_url("https://daruma.example").unwrap(),
+            "https://daruma.example/.well-known/oauth-authorization-server"
+        );
+        assert_eq!(
+            authorization_server_metadata_url("https://auth.example/tenant/").unwrap(),
+            "https://auth.example/.well-known/oauth-authorization-server/tenant"
+        );
+        assert!(authorization_server_metadata_url("/relative").is_err());
+        assert!(authorization_server_metadata_url("ftp://auth.example").is_err());
+    }
+
+    /// The hosted cloud answers on the tool subdomain with its own origin;
+    /// the result must match what the viewer used to hardcode.
+    #[test]
+    fn hosted_metadata_yields_same_origin_endpoints() {
+        let endpoints = endpoints_from_metadata(
+            resource(
+                r#"{"resource":"https://daruma.mcpbox.ru/v1/mcp",
+                    "authorization_servers":["https://daruma.mcpbox.ru"],
+                    "scopes_supported":["workspace:default","mcp:tools"]}"#,
+            ),
+            server(
+                r#"{"issuer":"https://daruma.mcpbox.ru",
+                    "authorization_endpoint":"https://daruma.mcpbox.ru/oauth/authorize",
+                    "token_endpoint":"https://daruma.mcpbox.ru/oauth/token",
+                    "registration_endpoint":"https://daruma.mcpbox.ru/oauth/register",
+                    "code_challenge_methods_supported":["S256"]}"#,
+            ),
+            "https://daruma.mcpbox.ru",
+        )
+        .unwrap();
+        assert_eq!(
+            endpoints,
+            OAuthEndpoints {
+                authorize_url: "https://daruma.mcpbox.ru/oauth/authorize".into(),
+                token_url: "https://daruma.mcpbox.ru/oauth/token".into(),
+                register_url: "https://daruma.mcpbox.ru/oauth/register".into(),
+                resource: "https://daruma.mcpbox.ru/v1/mcp".into(),
+                redirect_uri: "https://daruma.mcpbox.ru/web/".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn self_hosted_origin_drives_redirect_uri() {
+        let endpoints = endpoints_from_metadata(
+            resource(r#"{"resource":"http://127.0.0.1:8080/v1/mcp"}"#),
+            server(
+                r#"{"authorization_endpoint":"http://127.0.0.1:8080/oauth/authorize",
+                    "token_endpoint":"http://127.0.0.1:8080/oauth/token",
+                    "registration_endpoint":"http://127.0.0.1:8080/oauth/register"}"#,
+            ),
+            "http://127.0.0.1:8080/",
+        )
+        .unwrap();
+        assert_eq!(endpoints.redirect_uri, "http://127.0.0.1:8080/web/");
+        assert_eq!(endpoints.resource, "http://127.0.0.1:8080/v1/mcp");
+    }
+
+    #[test]
+    fn unusable_authorization_server_is_rejected() {
+        let res = || resource(r#"{"resource":"https://d.example/v1/mcp"}"#);
+        let no_s256 = server(
+            r#"{"authorization_endpoint":"https://d.example/a","token_endpoint":"https://d.example/t",
+                "registration_endpoint":"https://d.example/r","code_challenge_methods_supported":["plain"]}"#,
+        );
+        assert!(endpoints_from_metadata(res(), no_s256, "https://d.example")
+            .unwrap_err()
+            .contains("S256"));
+        let no_registration = server(
+            r#"{"authorization_endpoint":"https://d.example/a","token_endpoint":"https://d.example/t"}"#,
+        );
+        assert!(
+            endpoints_from_metadata(res(), no_registration, "https://d.example")
+                .unwrap_err()
+                .contains("registration")
+        );
+        let relative = server(
+            r#"{"authorization_endpoint":"/oauth/authorize","token_endpoint":"https://d.example/t",
+                "registration_endpoint":"https://d.example/r"}"#,
+        );
+        assert!(
+            endpoints_from_metadata(res(), relative, "https://d.example")
+                .unwrap_err()
+                .contains("authorization_endpoint")
+        );
+    }
 }

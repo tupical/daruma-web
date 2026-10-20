@@ -2526,3 +2526,7 @@ h1 {
   background: rgba(83,155,245,0.10);
   border-radius: 4px;
 }
+
+/* Sign-in screen: no token and no OAuth sign-in to start (src/main.rs). */
+.sign-in { max-width: 36rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.5; }
+.sign-in-error { color: var(--p0); }
