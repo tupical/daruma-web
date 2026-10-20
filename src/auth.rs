@@ -113,16 +113,17 @@ pub async fn discover_oauth() -> Result<Option<OAuthEndpoints>, String> {
         .location()
         .origin()
         .map_err(js_error)?;
-    // A static host may answer an unknown path with its SPA fallback page:
-    // a document that is not metadata means "no OAuth" just like a 404.
+    // The metadata is public by definition (RFC 9728), so a server that
+    // demands auth for it (the OSS daruma-server answers 401) publishes none;
+    // a static host may answer with its SPA fallback page instead of a 404.
     let resource = match get_metadata::<ProtectedResourceMetadata>(PROTECTED_RESOURCE_PATH).await {
         Ok(Some(resource)) => resource,
         Ok(None) => return Ok(None),
-        Err(MetadataError::Body(err)) => {
+        Err(MetadataError::Status(401 | 403, err) | MetadataError::Body(err)) => {
             leptos::logging::log!("[auth] no OAuth metadata: {err}");
             return Ok(None);
         }
-        Err(MetadataError::Request(err)) => return Err(err),
+        Err(MetadataError::Status(_, err) | MetadataError::Request(err)) => return Err(err),
     };
     let Some(issuer) = resource.authorization_servers.first() else {
         return Ok(None);
@@ -131,7 +132,9 @@ pub async fn discover_oauth() -> Result<Option<OAuthEndpoints>, String> {
     let server = match get_metadata::<AuthorizationServerMetadata>(&metadata_url).await {
         Ok(Some(server)) => server,
         Ok(None) => return Err(format!("{metadata_url}: HTTP 404")),
-        Err(MetadataError::Body(err) | MetadataError::Request(err)) => return Err(err),
+        Err(
+            MetadataError::Status(_, err) | MetadataError::Body(err) | MetadataError::Request(err),
+        ) => return Err(err),
     };
     endpoints_from_metadata(resource, server, &origin).map(Some)
 }
@@ -259,8 +262,10 @@ fn extract_token_param(search: &str) -> Option<String> {
 }
 
 enum MetadataError {
-    /// The request failed or the server answered with an error status.
+    /// The request itself failed.
     Request(String),
+    /// The server answered with a non-2xx status other than 404.
+    Status(u16, String),
     /// The server answered 2xx with a document that is not this metadata.
     Body(String),
 }
@@ -274,10 +279,10 @@ async fn get_metadata<T: DeserializeOwned>(url: &str) -> Result<Option<T>, Metad
         return Ok(None);
     }
     if !(200..300).contains(&(resp.status() as u32)) {
-        return Err(MetadataError::Request(format!(
-            "{url}: HTTP {}",
-            resp.status()
-        )));
+        return Err(MetadataError::Status(
+            resp.status(),
+            format!("{url}: HTTP {}", resp.status()),
+        ));
     }
     resp.json::<T>()
         .await
