@@ -42,6 +42,45 @@ For a non-root deployment path, pass the public URL explicitly:
 trunk build --release --public-url /web/
 ```
 
+## Sign-in
+
+The viewer sends a bearer token with every `/v1/*` request and keeps it in the
+browser's `localStorage` (`daruma_token`). Without a stored token it decides
+how to get one before redirecting anywhere (`src/main.rs`, `src/auth.rs`):
+
+1. It reads the API server's OAuth metadata: `GET
+   /.well-known/oauth-protected-resource` on its own origin (RFC 9728) names
+   the authorization server, whose `/.well-known/oauth-authorization-server`
+   (RFC 8414) gives the authorize, token and registration endpoints. No OAuth
+   URL is compiled into the bundle.
+2. If both documents are there, it runs Authorization Code + PKCE (S256):
+   registers itself as a client, sends the browser to the authorization
+   endpoint and exchanges the code on return. The redirect URI is the page's
+   origin plus `/web/`, the bundle's `public_url`.
+3. If the server publishes no metadata (404, 401/403, or a non-JSON page), the
+   viewer shows a sign-in screen instead. If discovery or sign-in fails, the
+   screen shows the error.
+
+**Hosted (MCPBox).** The cloud API publishes both metadata documents, so a
+fresh browser goes straight to the MCPBox consent page.
+
+**Self-hosted (OSS daruma-server).** The OSS server has no OAuth endpoints, so
+the first visit lands on the sign-in screen. Bootstrap the initial token
+through the URL once:
+
+```text
+https://<your-host>/web/?token=<token>
+```
+
+The token is stored in `localStorage` and reused on later visits. On first
+start daruma-server prints a long-lived admin token and writes it to
+`<data_dir>/bootstrap.token` (see the
+[daruma quick start](https://github.com/tupical/daruma#quick-start)). The
+token also stays in that first URL and in browser history, so prefer a
+token with only the capabilities the viewer needs. Serve the bundle and the
+API from one origin, as in production: the viewer calls `/v1/*`, `/v1/ws` and
+the metadata on its own origin.
+
 ## Scope
 
 This UI is an observability surface. It lists and inspects tasks, projects,
@@ -59,9 +98,9 @@ reverts and the panel shows "Not authorized"; the rest of the UI is
 unaffected.
 
 The other non-`GET` requests do not touch tracker data:
-`POST /v1/relations/query` is a bulk read; `POST /oauth/register` (registers
-this app as an OAuth client on the server) and `POST /oauth/token` are the
-sign-in flow (`src/auth.rs`).
+`POST /v1/relations/query` is a bulk read; the dynamic client registration
+(registers this app as an OAuth client on the server) and token requests are
+the sign-in flow (see [Sign-in](#sign-in), `src/auth.rs`).
 
 ### What daruma-web displays (OSS boundary)
 
