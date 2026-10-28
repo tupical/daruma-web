@@ -2,7 +2,7 @@ use super::fmt::{short_id, status_class, status_label};
 use crate::api::{self, TaskRelations};
 use crate::projects_ctx::{ProjectFilter, ProjectsCtx};
 use crate::relations_ctx::RelationsCtx;
-use daruma_domain::{Actor, Priority, Relation, RelationKind, Task};
+use daruma_domain::{Actor, Priority, Relation, RelationKind, Status, Task};
 use daruma_shared::ProjectId;
 use leptos::prelude::*;
 
@@ -186,7 +186,7 @@ pub fn TaskRow(task: Task) -> impl IntoView {
                         Some(Ok(rels)) => render_relations(this_task_id, &rels),
                     };
 
-                    let actors_section = render_actors(created_by.as_ref(), completed_by.as_ref());
+                    let actors_section = render_actors(created_by.as_ref(), completed_by.as_ref(), status);
 
                     view! {
                         <div class="task-body">
@@ -315,34 +315,61 @@ fn priority_repr(priority: Priority) -> (&'static str, &'static str, &'static st
     }
 }
 
-/// Render creator/completer actor chips. Hidden when both are `None`.
+/// Label shown in place of an author the server never recorded. Tasks created
+/// before `0010_tasks_actors.sql` keep `NULL` actors (no backfill), and
+/// `docs/architecture-policy.ru.md` §2.2 promises this marker for them instead
+/// of silently dropping the chip.
+const ACTOR_UNKNOWN: &str = "actor_unknown";
+
+/// One actor chip: CSS class, tooltip, label.
+type ActorChip = (&'static str, &'static str, String);
+
+/// Creator/completer chips for a task row. A missing creator is always shown
+/// as [`ACTOR_UNKNOWN`]; a missing completer only on `Done` tasks — any other
+/// status simply has not been completed yet.
+fn actor_chips(
+    created_by: Option<&Actor>,
+    completed_by: Option<&Actor>,
+    status: Status,
+) -> Vec<ActorChip> {
+    let creator = match created_by {
+        Some(a) => ("actor-chip actor-creator", "Created by", actor_label(a)),
+        None => (
+            "actor-chip actor-creator actor-unknown",
+            "Created by: not recorded (task predates authorship tracking)",
+            ACTOR_UNKNOWN.to_string(),
+        ),
+    };
+    let completer = match (completed_by, status) {
+        (Some(a), _) => Some(("actor-chip actor-completer", "Completed by", actor_label(a))),
+        (None, Status::Done) => Some((
+            "actor-chip actor-completer actor-unknown",
+            "Completed by: not recorded (task predates authorship tracking)",
+            ACTOR_UNKNOWN.to_string(),
+        )),
+        (None, _) => None,
+    };
+    std::iter::once(creator).chain(completer).collect()
+}
+
+/// Render creator/completer actor chips; see [`actor_chips`].
 fn render_actors(
     created_by: Option<&Actor>,
     completed_by: Option<&Actor>,
+    status: Status,
 ) -> leptos::prelude::AnyView {
     use leptos::prelude::*;
 
-    if created_by.is_none() && completed_by.is_none() {
-        return view! { <span></span> }.into_any();
-    }
-
-    let creator_chip = created_by.map(|a| {
-        let label = actor_label(a);
-        view! {
-            <span class="actor-chip actor-creator" title="Created by">{label}</span>
-        }
-    });
-    let completer_chip = completed_by.map(|a| {
-        let label = actor_label(a);
-        view! {
-            <span class="actor-chip actor-completer" title="Completed by">{label}</span>
-        }
-    });
+    let chips = actor_chips(created_by, completed_by, status)
+        .into_iter()
+        .map(|(class, title, label)| {
+            view! { <span class=class title=title>{label}</span> }
+        })
+        .collect_view();
 
     view! {
         <div class="task-body-section actors">
-            {creator_chip}
-            {completer_chip}
+            {chips}
         </div>
     }
     .into_any()
@@ -354,5 +381,62 @@ fn actor_label(actor: &Actor) -> String {
         Actor::User { name: Some(name), .. } => name.clone(),
         Actor::User { .. } => "user".to_string(),
         Actor::Agent { name, .. } => name.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn named_user() -> Actor {
+        Actor::User {
+            id: None,
+            name: Some("claude".to_string()),
+        }
+    }
+
+    fn labels(chips: &[ActorChip]) -> Vec<(&str, &str)> {
+        chips.iter().map(|(c, _, l)| (*c, l.as_str())).collect()
+    }
+
+    #[test]
+    fn actor_chips_missing_creator_shows_actor_unknown() {
+        let chips = actor_chips(None, None, Status::Todo);
+        assert_eq!(
+            labels(&chips),
+            vec![("actor-chip actor-creator actor-unknown", "actor_unknown")]
+        );
+    }
+
+    #[test]
+    fn actor_chips_done_without_completer_shows_actor_unknown_for_both() {
+        let chips = actor_chips(None, None, Status::Done);
+        assert_eq!(
+            labels(&chips),
+            vec![
+                ("actor-chip actor-creator actor-unknown", "actor_unknown"),
+                ("actor-chip actor-completer actor-unknown", "actor_unknown"),
+            ]
+        );
+    }
+
+    #[test]
+    fn actor_chips_known_creator_open_task_has_no_completer_chip() {
+        let a = named_user();
+        let chips = actor_chips(Some(&a), None, Status::InProgress);
+        assert_eq!(labels(&chips), vec![("actor-chip actor-creator", "claude")]);
+    }
+
+    #[test]
+    fn actor_chips_known_actors_keep_their_names() {
+        let a = named_user();
+        let chips = actor_chips(Some(&a), Some(&a), Status::Done);
+        assert_eq!(
+            labels(&chips),
+            vec![
+                ("actor-chip actor-creator", "claude"),
+                ("actor-chip actor-completer", "claude"),
+            ]
+        );
     }
 }

@@ -2530,3 +2530,6 @@ h1 {
 /* Sign-in screen: no token and no OAuth sign-in to start (src/main.rs). */
 .sign-in { max-width: 36rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.5; }
 .sign-in-error { color: var(--p0); }
+
+/* `actor_unknown`: the server never recorded this author (pre-0010 tasks). */
+.actor-chip.actor-unknown { border-style: dashed; color: var(--muted); }
