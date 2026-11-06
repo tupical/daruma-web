@@ -10,6 +10,7 @@ mod host_shell;
 mod projects_ctx;
 mod relations_ctx;
 mod ws;
+mod ws_session;
 
 use app::App;
 

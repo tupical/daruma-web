@@ -30,6 +30,14 @@ every `/v1/*` request leaves the machine and comes back as somebody else's
 with an nginx error page in the body — a dev-environment artifact, not an app
 bug.
 
+## Real scenarios
+
+`scripts/scenarios/ws-backlog.mjs` drives a built bundle in a headless browser
+against a real `daruma-server` and injects HTTP catch-up failures, socket drops
+and live events during history recovery. Pass the `dist/` directory, the server
+binary and an optional trace file; `TESTS_DIR` names a directory whose
+`node_modules` holds Playwright.
+
 ## Build
 
 ```bash
