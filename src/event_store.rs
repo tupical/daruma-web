@@ -4,8 +4,7 @@
 //!
 //! `EventStoreCtx` is provided once at the root (in `main.rs`) via
 //! `provide_context(EventStoreCtx::new())`.  The WebSocket layer (ws.rs)
-//! pushes [`EventEnvelope`] items into it via [`EventStoreCtx::push`] and
-//! [`EventStoreCtx::push_batch`].
+//! pushes [`EventEnvelope`] items into it via [`EventStoreCtx::push_batch`].
 //!
 //! # Public signals
 //!
@@ -90,7 +89,6 @@ pub struct EventStoreCtx {
     all_w: WriteSignal<Vec<EventEnvelope>>,
     graph_w: WriteSignal<Vec<EventEnvelope>>,
     conn_w: WriteSignal<ConnState>,
-    // Kept as RwSignal so we can call get_untracked() without needing a ReadSignal.
     seq_rw: RwSignal<u64>,
 }
 
@@ -112,18 +110,6 @@ impl EventStoreCtx {
             conn_w,
             seq_rw,
         }
-    }
-
-    /// Append a single envelope.  Updates seq and both slices atomically
-    /// (each signal write is independent but happens in the same microtask).
-    pub fn push(&self, env: EventEnvelope) {
-        let new_seq = env.seq;
-        let graph = is_graph_relevant(&env);
-        self.all_w.update(|v| v.push(env.clone()));
-        if graph {
-            self.graph_w.update(|v| v.push(env));
-        }
-        self.seq_rw.update(|s| *s = (*s).max(new_seq));
     }
 
     /// Append a batch of envelopes (e.g. a Snapshot or catch-up page).
@@ -149,11 +135,5 @@ impl EventStoreCtx {
     /// Update the connection state signal.
     pub fn set_conn_state(&self, state: ConnState) {
         self.conn_w.set(state);
-    }
-
-    /// Current highest seq (non-reactive read; use `server_seq` signal in
-    /// reactive contexts).
-    pub fn current_seq(&self) -> u64 {
-        self.seq_rw.get_untracked()
     }
 }
