@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn url_limit_counts_chars_not_bytes() {
         for unit in ["a", "ж", "😀"] {
-            let prefix = "https://host.example/";
+            let prefix = "/switch/";
             let fill = MAX_URL_CHARS - prefix.chars().count();
             let at_limit = format!("{prefix}{}", unit.repeat(fill));
             assert_eq!(url(&at_limit).as_deref(), Some(at_limit.as_str()), "{unit}");
