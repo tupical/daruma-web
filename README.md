@@ -147,13 +147,21 @@ as standalone mode.
 |---|---|---|
 | `home_url` | `string \| null` | URL of the host's home/dashboard page. |
 | `switcher_url` | `string \| null` | URL of the host's workspace-switcher page. Preferred over `home_url` for the "Workspaces" button. |
-| `current_workspace_label` | `string \| null` | Display name of the currently active workspace (max 80 chars). Shown in the nav bar. |
+| `current_workspace_label` | `string \| null` | Display name of the currently active workspace (max 80 characters after trimming; a longer value is discarded). Shown in the nav bar. |
 
 If both `switcher_url` and `home_url` are present, `switcher_url` takes
 precedence for navigation (`primary_url` in `src/host_shell.rs:33`).
 
 Accepted URL values: absolute `https://…`, `http://…`, or root-relative
-`/…` paths. Values longer than 2 048 chars are silently discarded.
+`/…` paths. Values longer than 2 048 characters after trimming are silently
+discarded.
+
+Length limits count Unicode scalar values (Rust `char`s) of the trimmed
+value, not UTF-8 bytes: a 41-letter Cyrillic label (82 bytes) is kept, and an
+emoji such as `😀` counts as one character. Emoji built from several scalars
+(ZWJ sequences, flags, skin-tone modifiers) count each scalar. A discarded
+value behaves as if the field were absent; if every field is discarded the
+viewer runs in standalone mode.
 
 ### Rules for host integration
 
